@@ -1,0 +1,14 @@
+build/
+build_release/
+ImageAnnotator_Release/
+
+# Qt / CMake specific ignores
+CMakeCache.txt
+CMakeFiles/
+*.cmake
+*.ninja
+.ninja_*
+*.obj
+*.exe
+*.dll
+*.user
