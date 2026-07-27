@@ -11,6 +11,8 @@ qt_standard_project_setup(REQUIRES 6.5)
 qt_add_executable(appImageAnnotator
     main.cpp
     clipboardhelper.cpp
+    clipboardhelper.h
+    app.rc
 )
 
 qt_add_qml_module(appImageAnnotator
