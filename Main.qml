@@ -137,6 +137,19 @@ Window {
         }
     }
 
+    MessageDialog {
+        id: clearConfirmDialog
+        title: "確認"
+        text: "本当にすべての図形を削除しますか？"
+        buttons: MessageDialog.Yes | MessageDialog.No
+        onAccepted: {
+            shapeModel.clear();
+            selectedIndex = -1;
+            isSaved = false;
+            saveState();
+        }
+    }
+
     FileDialog {
         id: saveDialog
         title: "Save Image"
@@ -286,12 +299,27 @@ Window {
             anchors.margins: 5
             spacing: 10
 
-            ColumnLayout {
+            RowLayout {
                 spacing: 2
-                Button { text: "Paste"; onClicked: pasteImage(); Layout.preferredHeight: 22 }
-                Button { text: "Copy"; onClicked: copyAnnotatedImage(); Layout.preferredHeight: 22 }
+                ToolButton { 
+                    icon.source: "icons/paste.svg"
+                    onClicked: pasteImage()
+                    ToolTip.visible: hovered; ToolTip.text: "Paste (Ctrl+V)"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
+                ToolButton { 
+                    icon.source: "icons/copy.svg"
+                    onClicked: copyAnnotatedImage()
+                    ToolTip.visible: hovered; ToolTip.text: "Copy (Ctrl+C)"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
+                ToolButton { 
+                    icon.source: "icons/save.svg"
+                    onClicked: saveDialog.open()
+                    ToolTip.visible: hovered; ToolTip.text: "Save As (Ctrl+S)"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
             }
-            Button { text: "Save As"; onClicked: saveDialog.open(); Layout.preferredHeight: 46 }
 
             Rectangle { width: 2; height: parent.height - 10; color: "#999" }
 
@@ -388,15 +416,34 @@ Window {
 
             Rectangle { width: 2; height: parent.height - 10; color: "#999" }
 
-            ColumnLayout {
+            RowLayout {
                 spacing: 2
-                Button { text: "Undo"; onClicked: undoShape(); Layout.preferredHeight: 22 }
-                Button { text: "Redo"; onClicked: redoShape(); Layout.preferredHeight: 22 }
-            }
-            ColumnLayout {
-                spacing: 2
-                Button { text: "Delete"; onClicked: deleteSelectedShape(); Layout.preferredHeight: 22; enabled: selectedIndex >= 0 }
-                Button { text: "Clear All"; onClicked: { shapeModel.clear(); selectedIndex = -1; isSaved = false; saveState(); } Layout.preferredHeight: 22 }
+                ToolButton { 
+                    icon.source: "icons/undo.svg"
+                    onClicked: undoShape()
+                    ToolTip.visible: hovered; ToolTip.text: "Undo (Ctrl+Z)"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
+                ToolButton { 
+                    icon.source: "icons/redo.svg"
+                    onClicked: redoShape()
+                    ToolTip.visible: hovered; ToolTip.text: "Redo (Ctrl+Y)"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
+                Rectangle { width: 1; height: 30; color: "#999" }
+                ToolButton { 
+                    icon.source: "icons/delete.svg"
+                    onClicked: deleteSelectedShape()
+                    enabled: selectedIndex >= 0
+                    ToolTip.visible: hovered; ToolTip.text: "Delete Selected (Del)"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
+                ToolButton { 
+                    icon.source: "icons/clear.svg"
+                    onClicked: clearConfirmDialog.open()
+                    ToolTip.visible: hovered; ToolTip.text: "Clear All Shapes"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
             }
             
             Item { Layout.fillWidth: true }
