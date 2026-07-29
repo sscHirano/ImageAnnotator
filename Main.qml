@@ -15,7 +15,7 @@ Window {
 
     property string currentTool: "none"
     property string currentColor: "#ff0000"
-    property int currentThickness: 3
+    property int currentThickness: 5
     property bool isPastedImage: false
     property int selectedIndex: -1
     property bool isSaved: true
@@ -37,7 +37,9 @@ Window {
                 y: item.y,
                 w: item.w,
                 h: item.h,
-                textStr: item.textStr
+                textStr: item.textStr,
+                flipX: item.flipX !== undefined ? item.flipX : false,
+                flipY: item.flipY !== undefined ? item.flipY : false
             });
         }
         
@@ -360,6 +362,7 @@ Window {
             ToolButtonIcon { text: "👆"; toolName: "none" }
             ToolButtonIcon { text: "⭕"; toolName: "circle" }
             ToolButtonIcon { text: "⬜"; toolName: "rect" }
+            ToolButtonIcon { text: "↗"; toolName: "arrow" }
             ToolButtonIcon { text: "A"; toolName: "text" }
 
             Rectangle { width: 2; height: parent.height - 10; color: "#999" }
@@ -540,6 +543,12 @@ Window {
                     property int dragStartY: 0
                     property int shapeStartX: 0
                     property int shapeStartY: 0
+                    
+                    property string isDraggingHandle: ""
+
+                    function hitTestHandle(mx, my, hx, hy) {
+                        return Math.abs(mx - hx) < 15 && Math.abs(my - hy) < 15;
+                    }
 
                     function hitTestRect(mx, my, x, y, w, h, thickness) {
                         var margin = Math.max(15, thickness + 5);
@@ -574,6 +583,25 @@ Window {
                         return (mx >= x - margin && mx <= x + w + margin && my >= y - margin && my <= y + h + margin);
                     }
 
+                    function hitTestArrow(mx, my, x, y, w, h, thickness, flipX, flipY) {
+                        var sx = flipX ? x + w : x;
+                        var sy = flipY ? y + h : y;
+                        var ex = flipX ? x : x + w;
+                        var ey = flipY ? y : y + h;
+                        
+                        var l2 = (ex - sx) * (ex - sx) + (ey - sy) * (ey - sy);
+                        if (l2 === 0) return hitTestFill(mx, my, sx - 2, sy - 2, 4, 4);
+                        
+                        var t = ((mx - sx) * (ex - sx) + (my - sy) * (ey - sy)) / l2;
+                        t = Math.max(0, Math.min(1, t));
+                        var projX = sx + t * (ex - sx);
+                        var projY = sy + t * (ey - sy);
+                        
+                        var dist = Math.sqrt((mx - projX) * (mx - projX) + (my - projY) * (my - projY));
+                        var margin = Math.max(15, thickness + 5);
+                        return dist <= margin;
+                    }
+
                     onPressed: (mouse) => {
                         contentArea.forceActiveFocus();
                         
@@ -583,6 +611,24 @@ Window {
                         }
 
                         if (currentTool === "none") {
+                            if (selectedIndex >= 0) {
+                                var selItem = shapeModel.get(selectedIndex);
+                                if (selItem.type === "arrow") {
+                                    var sx = selItem.x + (selItem.flipX ? selItem.w : 0);
+                                    var sy = selItem.y + (selItem.flipY ? selItem.h : 0);
+                                    var ex = selItem.x + (selItem.flipX ? 0 : selItem.w);
+                                    var ey = selItem.y + (selItem.flipY ? 0 : selItem.h);
+                                    if (hitTestHandle(mouse.x, mouse.y, sx, sy)) {
+                                        isDraggingHandle = "start";
+                                        return;
+                                    }
+                                    if (hitTestHandle(mouse.x, mouse.y, ex, ey)) {
+                                        isDraggingHandle = "end";
+                                        return;
+                                    }
+                                }
+                            }
+                            
                             for (var i = shapeModel.count - 1; i >= 0; i--) {
                                 var item = shapeModel.get(i);
                                 var hit = false;
@@ -590,6 +636,8 @@ Window {
                                     hit = hitTestFill(mouse.x, mouse.y, item.x, item.y, item.w, item.h);
                                 } else if (item.type === "circle") {
                                     hit = hitTestCircle(mouse.x, mouse.y, item.x, item.y, item.w, item.h, item.thickness);
+                                } else if (item.type === "arrow") {
+                                    hit = hitTestArrow(mouse.x, mouse.y, item.x, item.y, item.w, item.h, item.thickness, item.flipX, item.flipY);
                                 } else {
                                     hit = hitTestRect(mouse.x, mouse.y, item.x, item.y, item.w, item.h, item.thickness);
                                 }
@@ -631,11 +679,58 @@ Window {
                             y: startY,
                             w: 0,
                             h: 0,
-                            textStr: ""
+                            textStr: "",
+                            flipX: false,
+                            flipY: false
                         })
                     }
 
                     onPositionChanged: (mouse) => {
+                        if (currentTool === "none" && isDraggingHandle !== "" && selectedIndex >= 0) {
+                            var selItem = shapeModel.get(selectedIndex);
+                            var sx = selItem.x + (selItem.flipX ? selItem.w : 0);
+                            var sy = selItem.y + (selItem.flipY ? selItem.h : 0);
+                            var ex = selItem.x + (selItem.flipX ? 0 : selItem.w);
+                            var ey = selItem.y + (selItem.flipY ? 0 : selItem.h);
+                            
+                            if (isDraggingHandle === "start") {
+                                sx = mouse.x;
+                                sy = mouse.y;
+                            } else {
+                                ex = mouse.x;
+                                ey = mouse.y;
+                            }
+                            
+                            if (mouse.modifiers & Qt.ShiftModifier) {
+                                var dx = ex - sx;
+                                var dy = ey - sy;
+                                var angle = Math.atan2(dy, dx);
+                                var snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+                                var r = Math.sqrt(dx*dx + dy*dy);
+                                if (isDraggingHandle === "start") {
+                                    sx = ex - r * Math.cos(snapped);
+                                    sy = ey - r * Math.sin(snapped);
+                                } else {
+                                    ex = sx + r * Math.cos(snapped);
+                                    ey = sy + r * Math.sin(snapped);
+                                }
+                            }
+
+                            var nnx = Math.min(sx, ex);
+                            var nny = Math.min(sy, ey);
+                            var nnw = Math.abs(ex - sx);
+                            var nnh = Math.abs(ey - sy);
+                            
+                            shapeModel.setProperty(selectedIndex, "x", nnx);
+                            shapeModel.setProperty(selectedIndex, "y", nny);
+                            shapeModel.setProperty(selectedIndex, "w", nnw);
+                            shapeModel.setProperty(selectedIndex, "h", nnh);
+                            shapeModel.setProperty(selectedIndex, "flipX", sx > ex);
+                            shapeModel.setProperty(selectedIndex, "flipY", sy > ey);
+                            isSaved = false;
+                            return;
+                        }
+
                         if (currentTool === "none" && isDraggingShape && selectedIndex >= 0) {
                             var dx = mouse.x - dragStartX;
                             var dy = mouse.y - dragStartY;
@@ -665,9 +760,35 @@ Window {
                         shapeModel.setProperty(lastIdx, "y", ny);
                         shapeModel.setProperty(lastIdx, "w", nw);
                         shapeModel.setProperty(lastIdx, "h", nh);
+                        if (currentTool === "arrow") {
+                            if (mouse.modifiers & Qt.ShiftModifier) {
+                                var adx = mouse.x - startX;
+                                var ady = mouse.y - startY;
+                                var aangle = Math.atan2(ady, adx);
+                                var asnapped = Math.round(aangle / (Math.PI / 4)) * (Math.PI / 4);
+                                var ar = Math.sqrt(adx*adx + ady*ady);
+                                var targetX = startX + ar * Math.cos(asnapped);
+                                var targetY = startY + ar * Math.sin(asnapped);
+                                shapeModel.setProperty(lastIdx, "x", Math.min(startX, targetX));
+                                shapeModel.setProperty(lastIdx, "y", Math.min(startY, targetY));
+                                shapeModel.setProperty(lastIdx, "w", Math.abs(targetX - startX));
+                                shapeModel.setProperty(lastIdx, "h", Math.abs(targetY - startY));
+                                shapeModel.setProperty(lastIdx, "flipX", targetX < startX);
+                                shapeModel.setProperty(lastIdx, "flipY", targetY < startY);
+                            } else {
+                                shapeModel.setProperty(lastIdx, "flipX", mouse.x < startX);
+                                shapeModel.setProperty(lastIdx, "flipY", mouse.y < startY);
+                            }
+                        }
                     }
 
                     onReleased: (mouse) => {
+                        if (isDraggingHandle !== "") {
+                            isDraggingHandle = "";
+                            saveState();
+                            return;
+                        }
+
                         if (isDraggingShape) {
                             isDraggingShape = false;
                             if (mouse.x !== dragStartX || mouse.y !== dragStartY) {
@@ -737,6 +858,82 @@ Window {
                             font.pixelSize: Math.max(20, model.thickness * 10)
                             wrapMode: Text.Wrap
                             visible: model.type === "text"
+                        }
+
+                        Canvas {
+                            anchors.fill: parent
+                            anchors.margins: -Math.max(20, model.thickness * 4)
+                            visible: model.type === "arrow"
+                            
+                            property int _w: model.w
+                            property int _h: model.h
+                            property color _c: model.color
+                            property int _t: model.thickness
+                            property bool _fx: model.flipX !== undefined ? model.flipX : false
+                            property bool _fy: model.flipY !== undefined ? model.flipY : false
+                            property int _pad: Math.max(20, model.thickness * 4)
+                            
+                            onPaint: {
+                                var ctx = getContext("2d");
+                                ctx.clearRect(0, 0, width, height);
+                                
+                                var sx = (_fx ? _w : 0) + _pad;
+                                var sy = (_fy ? _h : 0) + _pad;
+                                var ex = (_fx ? 0 : _w) + _pad;
+                                var ey = (_fy ? 0 : _h) + _pad;
+                                
+                                ctx.beginPath();
+                                ctx.moveTo(sx, sy);
+                                ctx.lineTo(ex, ey);
+                                ctx.strokeStyle = _c;
+                                ctx.lineWidth = _t;
+                                ctx.lineCap = "round";
+                                ctx.lineJoin = "round";
+                                ctx.stroke();
+                                
+                                var dx = ex - sx;
+                                var dy = ey - sy;
+                                var angle = Math.atan2(dy, dx);
+                                var headlen = Math.max(15, _t * 3);
+                                
+                                ctx.beginPath();
+                                ctx.moveTo(ex, ey);
+                                ctx.lineTo(ex - headlen * Math.cos(angle - Math.PI / 6), ey - headlen * Math.sin(angle - Math.PI / 6));
+                                ctx.lineTo(ex - headlen * Math.cos(angle + Math.PI / 6), ey - headlen * Math.sin(angle + Math.PI / 6));
+                                ctx.closePath();
+                                ctx.fillStyle = _c;
+                                ctx.fill();
+                            }
+                            
+                            on_WChanged: requestPaint()
+                            on_HChanged: requestPaint()
+                            on_CChanged: requestPaint()
+                            on_TChanged: requestPaint()
+                            on_FxChanged: requestPaint()
+                            on_FyChanged: requestPaint()
+                        }
+                        
+                        Rectangle {
+                            width: 14
+                            height: 14
+                            radius: 7
+                            color: "#00aaff"
+                            border.color: "white"
+                            border.width: 2
+                            x: (model.flipX ? model.w : 0) - 7
+                            y: (model.flipY ? model.h : 0) - 7
+                            visible: isSelected && currentTool === "none" && model.type === "arrow"
+                        }
+                        Rectangle {
+                            width: 14
+                            height: 14
+                            radius: 7
+                            color: "#00aaff"
+                            border.color: "white"
+                            border.width: 2
+                            x: (model.flipX ? 0 : model.w) - 7
+                            y: (model.flipY ? 0 : model.h) - 7
+                            visible: isSelected && currentTool === "none" && model.type === "arrow"
                         }
                     }
                 }
