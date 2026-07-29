@@ -183,7 +183,7 @@ Window {
     Shortcut { sequence: "Ctrl+S"; onActivated: saveDialog.open(); context: Qt.ApplicationShortcut }
 
     Shortcut {
-        sequence: StandardKey.Paste
+        sequences: [StandardKey.Paste]
         context: Qt.ApplicationShortcut
         onActivated: {
             if (textInput.activeFocus) textInput.paste();
@@ -191,7 +191,7 @@ Window {
         }
     }
     Shortcut {
-        sequence: StandardKey.Copy
+        sequences: [StandardKey.Copy]
         context: Qt.ApplicationShortcut
         onActivated: {
             if (textInput.activeFocus) textInput.copy();
@@ -215,7 +215,7 @@ Window {
         }
     }
     Shortcut {
-        sequence: StandardKey.Delete
+        sequences: [StandardKey.Delete]
         context: Qt.ApplicationShortcut
         onActivated: {
             if (!textInput.activeFocus) deleteSelectedShape();
@@ -547,39 +547,39 @@ Window {
                     property string isDraggingHandle: ""
 
                     function hitTestHandle(mx, my, hx, hy) {
-                        return Math.abs(mx - hx) < 15 && Math.abs(my - hy) < 15;
+                        var tol = 15 / captureArea.scale;
+                        return Math.abs(mx - hx) < tol && Math.abs(my - hy) < tol;
                     }
 
                     function hitTestRect(mx, my, x, y, w, h, thickness) {
-                        var margin = Math.max(15, thickness + 5);
+                        var margin = Math.max(15 / captureArea.scale, thickness + 5 / captureArea.scale);
                         var outer = (mx >= x - margin && mx <= x + w + margin && my >= y - margin && my <= y + h + margin);
                         var inner = (mx > x + margin && mx < x + w - margin && my > y + margin && my < y + h - margin);
                         return outer && !inner;
                     }
 
                     function hitTestCircle(mx, my, x, y, w, h, thickness) {
-                        var rx = w / 2;
-                        var ry = h / 2;
-                        if (rx < 0.1) rx = 0.1;
-                        if (ry < 0.1) ry = 0.1;
-                        var cx = x + rx;
-                        var cy = y + ry;
-                        var dx = mx - cx;
-                        var dy = my - cy;
-                        var nx = dx / rx;
-                        var ny = dy / ry;
-                        var d = Math.sqrt(nx * nx + ny * ny);
-                        
-                        var m = Math.max(15, thickness + 5);
-                        var minR = Math.min(rx, ry);
-                        var marginRatio = m / minR;
-                        
-                        if (minR < 5) return d <= 1.0 + marginRatio;
-                        return d >= 1.0 - marginRatio && d <= 1.0 + marginRatio;
+                        var cx = x + w / 2;
+                        var cy = y + h / 2;
+                        var r = Math.min(w, h) / 2;
+                        var dx = Math.abs(mx - cx) - (Math.abs(w) / 2 - r);
+                        var dy = Math.abs(my - cy) - (Math.abs(h) / 2 - r);
+                        var dist = 0;
+                        if (dx > 0 && dy > 0) {
+                            dist = Math.sqrt(dx * dx + dy * dy) - r;
+                        } else if (dx > 0) {
+                            dist = dx - r;
+                        } else if (dy > 0) {
+                            dist = dy - r;
+                        } else {
+                            dist = Math.max(dx, dy) - r;
+                        }
+                        var margin = thickness / 2 + 5 / captureArea.scale;
+                        return Math.abs(dist) <= margin;
                     }
 
                     function hitTestFill(mx, my, x, y, w, h) {
-                        var margin = 5;
+                        var margin = 5 / captureArea.scale;
                         return (mx >= x - margin && mx <= x + w + margin && my >= y - margin && my <= y + h + margin);
                     }
 
@@ -598,7 +598,7 @@ Window {
                         var projY = sy + t * (ey - sy);
                         
                         var dist = Math.sqrt((mx - projX) * (mx - projX) + (my - projY) * (my - projY));
-                        var margin = Math.max(15, thickness + 5);
+                        var margin = Math.max(15 / captureArea.scale, thickness + 5 / captureArea.scale);
                         return dist <= margin;
                     }
 
@@ -626,6 +626,15 @@ Window {
                                         isDraggingHandle = "end";
                                         return;
                                     }
+                                } else if (selItem.type === "rect" || selItem.type === "circle") {
+                                    var tx = selItem.x;
+                                    var ty = selItem.y;
+                                    var bx = selItem.x + selItem.w;
+                                    var by = selItem.y + selItem.h;
+                                    if (hitTestHandle(mouse.x, mouse.y, tx, ty)) { isDraggingHandle = "tl"; return; }
+                                    if (hitTestHandle(mouse.x, mouse.y, bx, ty)) { isDraggingHandle = "tr"; return; }
+                                    if (hitTestHandle(mouse.x, mouse.y, tx, by)) { isDraggingHandle = "bl"; return; }
+                                    if (hitTestHandle(mouse.x, mouse.y, bx, by)) { isDraggingHandle = "br"; return; }
                                 }
                             }
                             
@@ -688,47 +697,102 @@ Window {
                     onPositionChanged: (mouse) => {
                         if (currentTool === "none" && isDraggingHandle !== "" && selectedIndex >= 0) {
                             var selItem = shapeModel.get(selectedIndex);
-                            var sx = selItem.x + (selItem.flipX ? selItem.w : 0);
-                            var sy = selItem.y + (selItem.flipY ? selItem.h : 0);
-                            var ex = selItem.x + (selItem.flipX ? 0 : selItem.w);
-                            var ey = selItem.y + (selItem.flipY ? 0 : selItem.h);
-                            
-                            if (isDraggingHandle === "start") {
-                                sx = mouse.x;
-                                sy = mouse.y;
-                            } else {
-                                ex = mouse.x;
-                                ey = mouse.y;
-                            }
-                            
-                            if (mouse.modifiers & Qt.ShiftModifier) {
-                                var dx = ex - sx;
-                                var dy = ey - sy;
-                                var angle = Math.atan2(dy, dx);
-                                var snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-                                var r = Math.sqrt(dx*dx + dy*dy);
+                            if (selItem.type === "arrow") {
+                                var sx = selItem.x + (selItem.flipX ? selItem.w : 0);
+                                var sy = selItem.y + (selItem.flipY ? selItem.h : 0);
+                                var ex = selItem.x + (selItem.flipX ? 0 : selItem.w);
+                                var ey = selItem.y + (selItem.flipY ? 0 : selItem.h);
+                                
                                 if (isDraggingHandle === "start") {
-                                    sx = ex - r * Math.cos(snapped);
-                                    sy = ey - r * Math.sin(snapped);
+                                    sx = mouse.x;
+                                    sy = mouse.y;
                                 } else {
-                                    ex = sx + r * Math.cos(snapped);
-                                    ey = sy + r * Math.sin(snapped);
+                                    ex = mouse.x;
+                                    ey = mouse.y;
                                 }
-                            }
+                                
+                                if (mouse.modifiers & Qt.ShiftModifier) {
+                                    var dx = ex - sx;
+                                    var dy = ey - sy;
+                                    var angle = Math.atan2(dy, dx);
+                                    var snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+                                    var r = Math.sqrt(dx*dx + dy*dy);
+                                    if (isDraggingHandle === "start") {
+                                        sx = ex - r * Math.cos(snapped);
+                                        sy = ey - r * Math.sin(snapped);
+                                    } else {
+                                        ex = sx + r * Math.cos(snapped);
+                                        ey = sy + r * Math.sin(snapped);
+                                    }
+                                }
 
-                            var nnx = Math.min(sx, ex);
-                            var nny = Math.min(sy, ey);
-                            var nnw = Math.abs(ex - sx);
-                            var nnh = Math.abs(ey - sy);
-                            
-                            shapeModel.setProperty(selectedIndex, "x", nnx);
-                            shapeModel.setProperty(selectedIndex, "y", nny);
-                            shapeModel.setProperty(selectedIndex, "w", nnw);
-                            shapeModel.setProperty(selectedIndex, "h", nnh);
-                            shapeModel.setProperty(selectedIndex, "flipX", sx > ex);
-                            shapeModel.setProperty(selectedIndex, "flipY", sy > ey);
-                            isSaved = false;
-                            return;
+                                var nnx = Math.min(sx, ex);
+                                var nny = Math.min(sy, ey);
+                                var nnw = Math.abs(ex - sx);
+                                var nnh = Math.abs(ey - sy);
+                                
+                                shapeModel.setProperty(selectedIndex, "x", nnx);
+                                shapeModel.setProperty(selectedIndex, "y", nny);
+                                shapeModel.setProperty(selectedIndex, "w", nnw);
+                                shapeModel.setProperty(selectedIndex, "h", nnh);
+                                shapeModel.setProperty(selectedIndex, "flipX", sx > ex);
+                                shapeModel.setProperty(selectedIndex, "flipY", sy > ey);
+                                isSaved = false;
+                                return;
+                            } else if (selItem.type === "rect" || selItem.type === "circle") {
+                                var tx = selItem.x;
+                                var ty = selItem.y;
+                                var bx = selItem.x + selItem.w;
+                                var by = selItem.y + selItem.h;
+                                
+                                var signX = 1;
+                                var signY = 1;
+                                var size = 0;
+
+                                if (isDraggingHandle === "tl") {
+                                    tx = mouse.x; ty = mouse.y;
+                                } else if (isDraggingHandle === "tr") {
+                                    bx = mouse.x; ty = mouse.y;
+                                } else if (isDraggingHandle === "bl") {
+                                    tx = mouse.x; by = mouse.y;
+                                } else if (isDraggingHandle === "br") {
+                                    bx = mouse.x; by = mouse.y;
+                                }
+
+                                if (mouse.modifiers & Qt.ShiftModifier) {
+                                    var dw = Math.abs(bx - tx);
+                                    var dh = Math.abs(by - ty);
+                                    size = Math.max(dw, dh);
+                                    if (isDraggingHandle === "tl") {
+                                        signX = mouse.x < bx ? -1 : 1;
+                                        signY = mouse.y < by ? -1 : 1;
+                                        tx = bx + signX * size;
+                                        ty = by + signY * size;
+                                    } else if (isDraggingHandle === "tr") {
+                                        signX = mouse.x < tx ? -1 : 1;
+                                        signY = mouse.y < by ? -1 : 1;
+                                        bx = tx + signX * size;
+                                        ty = by + signY * size;
+                                    } else if (isDraggingHandle === "bl") {
+                                        signX = mouse.x < bx ? -1 : 1;
+                                        signY = mouse.y < ty ? -1 : 1;
+                                        tx = bx + signX * size;
+                                        by = ty + signY * size;
+                                    } else if (isDraggingHandle === "br") {
+                                        signX = mouse.x < tx ? -1 : 1;
+                                        signY = mouse.y < ty ? -1 : 1;
+                                        bx = tx + signX * size;
+                                        by = ty + signY * size;
+                                    }
+                                }
+
+                                shapeModel.setProperty(selectedIndex, "x", Math.min(tx, bx));
+                                shapeModel.setProperty(selectedIndex, "y", Math.min(ty, by));
+                                shapeModel.setProperty(selectedIndex, "w", Math.abs(bx - tx));
+                                shapeModel.setProperty(selectedIndex, "h", Math.abs(by - ty));
+                                isSaved = false;
+                                return;
+                            }
                         }
 
                         if (currentTool === "none" && isDraggingShape && selectedIndex >= 0) {
@@ -824,14 +888,55 @@ Window {
                         height: model.h
 
                         property bool isSelected: index === selectedIndex
+                        property real hScale: 1.0 / captureArea.scale
 
                         Rectangle {
                             anchors.fill: parent
-                            anchors.margins: - (model.thickness / 2) - 4
+                            anchors.margins: - (model.thickness / 2) - 4 * hScale
                             color: "transparent"
                             border.color: "#00aaff"
-                            border.width: 2
+                            border.width: 2 * hScale
                             visible: isSelected && currentTool === "none"
+                        }
+                        
+                        // Rect/Circle handles
+                        Rectangle {
+                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
+                            x: - (model.thickness / 2) - 4 * hScale - 7 * hScale; y: - (model.thickness / 2) - 4 * hScale - 7 * hScale
+                            visible: isSelected && currentTool === "none" && (model.type === "rect" || model.type === "circle")
+                        }
+                        Rectangle {
+                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
+                            x: model.w + (model.thickness / 2) + 4 * hScale - 7 * hScale; y: - (model.thickness / 2) - 4 * hScale - 7 * hScale
+                            visible: isSelected && currentTool === "none" && (model.type === "rect" || model.type === "circle")
+                        }
+                        Rectangle {
+                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
+                            x: - (model.thickness / 2) - 4 * hScale - 7 * hScale; y: model.h + (model.thickness / 2) + 4 * hScale - 7 * hScale
+                            visible: isSelected && currentTool === "none" && (model.type === "rect" || model.type === "circle")
+                        }
+                        Rectangle {
+                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
+                            x: model.w + (model.thickness / 2) + 4 * hScale - 7 * hScale; y: model.h + (model.thickness / 2) + 4 * hScale - 7 * hScale
+                            visible: isSelected && currentTool === "none" && (model.type === "rect" || model.type === "circle")
+                        }
+                        
+                        // Arrow handles
+                        Rectangle {
+                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
+                            x: (model.flipX ? model.w : 0) - 7 * hScale; y: (model.flipY ? model.h : 0) - 7 * hScale
+                            visible: isSelected && currentTool === "none" && model.type === "arrow"
+                        }
+                        Rectangle {
+                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
+                            x: (model.flipX ? 0 : model.w) - 7 * hScale; y: (model.flipY ? 0 : model.h) - 7 * hScale
+                            visible: isSelected && currentTool === "none" && model.type === "arrow"
                         }
 
                         Rectangle {
