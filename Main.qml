@@ -13,7 +13,7 @@ Window {
     title: qsTr("Image Annotator") + (isSaved ? "" : " *")
     color: "#2b2b2b"
 
-    property string currentTool: "none"
+    property string currentTool: "rect"
     property string currentColor: "#ff0000"
     property int currentThickness: 5
     property bool isPastedImage: false
