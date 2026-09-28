@@ -991,13 +991,41 @@ Window {
                         property bool isSelected: index === selectedIndex
                         property real hScale: 1.0 / captureArea.scale
 
-                        Rectangle {
+                        Item {
                             anchors.fill: parent
                             anchors.margins: - (model.thickness / 2) - 4 * hScale
-                            color: "transparent"
-                            border.color: "#00aaff"
-                            border.width: 2 * hScale
                             visible: isSelected && currentTool === "none"
+
+                            Rectangle {
+                                id: selectionTop
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                height: 2 * hScale
+                                color: "#00aaff"
+                            }
+                            Rectangle {
+                                id: selectionBottom
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                height: 2 * hScale
+                                color: "#00aaff"
+                            }
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                width: 2 * hScale
+                                color: "#00aaff"
+                            }
+                            Rectangle {
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                width: 2 * hScale
+                                color: "#00aaff"
+                            }
                         }
                         
                         // Rect/Circle handles
