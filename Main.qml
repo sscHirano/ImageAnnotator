@@ -184,6 +184,49 @@ Window {
     Shortcut { sequence: "Ctrl+S"; onActivated: saveDialog.open(); context: Qt.ApplicationShortcut }
 
     Shortcut {
+        sequence: "V"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: currentTool = "none"
+    }
+    Shortcut {
+        sequence: "C"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: { currentTool = "circle"; selectedIndex = -1; }
+    }
+    Shortcut {
+        sequence: "S"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: { currentTool = "rect"; selectedIndex = -1; }
+    }
+    Shortcut {
+        sequence: "T"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: { currentTool = "text"; selectedIndex = -1; }
+    }
+    Shortcut {
+        sequence: "A"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: { currentTool = "arrow"; selectedIndex = -1; }
+    }
+    Shortcut {
+        sequence: "F"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus && selectedIndex >= 0 && selectedIndex < shapeModel.count &&
+                 (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")
+        onActivated: {
+            var selectedShape = shapeModel.get(selectedIndex);
+            shapeModel.setProperty(selectedIndex, "filled", selectedShape.filled !== true);
+            isSaved = false;
+            saveState();
+        }
+    }
+
+    Shortcut {
         sequences: [StandardKey.Paste]
         context: Qt.ApplicationShortcut
         onActivated: {
