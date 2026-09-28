@@ -602,6 +602,22 @@ Window {
                         return dist <= margin;
                     }
 
+                    function editTextShape(index) {
+                        var item = shapeModel.get(index);
+                        selectedIndex = index;
+                        currentColor = item.color;
+                        currentThickness = item.thickness;
+                        textInput.editingIndex = index;
+                        textInput.x = item.x;
+                        textInput.y = item.y;
+                        textInput.width = Math.max(item.w, 1);
+                        textInput.height = Math.max(item.h, 1);
+                        textInput.text = item.textStr;
+                        textInput.visible = true;
+                        textInput.forceActiveFocus();
+                        textInput.cursorPosition = textInput.text.length;
+                    }
+
                     onPressed: (mouse) => {
                         contentArea.forceActiveFocus();
                         
@@ -692,6 +708,19 @@ Window {
                             flipX: false,
                             flipY: false
                         })
+                    }
+
+                    onDoubleClicked: (mouse) => {
+                        if (currentTool !== "none") return;
+
+                        for (var i = shapeModel.count - 1; i >= 0; i--) {
+                            var item = shapeModel.get(i);
+                            if (item.type === "text" && hitTestFill(mouse.x, mouse.y, item.x, item.y, item.w, item.h)) {
+                                editTextShape(i);
+                                mouse.accepted = true;
+                                return;
+                            }
+                        }
                     }
 
                     onPositionChanged: (mouse) => {
@@ -962,7 +991,7 @@ Window {
                             color: model.color
                             font.pixelSize: Math.max(20, model.thickness * 10)
                             wrapMode: Text.Wrap
-                            visible: model.type === "text"
+                            visible: model.type === "text" && !(textInput.visible && textInput.editingIndex === index)
                         }
 
                         Canvas {
@@ -1046,13 +1075,24 @@ Window {
                 TextEdit {
                     id: textInput
                     visible: false
+                    property int editingIndex: -1
                     color: currentColor
                     font.pixelSize: Math.max(20, currentThickness * 10)
                     selectByMouse: true
                     
                     onActiveFocusChanged: {
                         if (!activeFocus && visible) {
-                            if (text !== "") {
+                            if (editingIndex >= 0 && editingIndex < shapeModel.count) {
+                                if (text !== "") {
+                                    shapeModel.setProperty(editingIndex, "textStr", text);
+                                    shapeModel.setProperty(editingIndex, "w", Math.max(width, contentWidth));
+                                    shapeModel.setProperty(editingIndex, "h", Math.max(height, contentHeight));
+                                } else {
+                                    shapeModel.remove(editingIndex);
+                                }
+                                isSaved = false;
+                                saveState();
+                            } else if (text !== "") {
                                 shapeModel.append({
                                     type: "text",
                                     color: currentColor,
@@ -1066,7 +1106,8 @@ Window {
                                 isSaved = false;
                                 saveState();
                             }
-                            selectedIndex = -1; 
+                            editingIndex = -1;
+                            selectedIndex = -1;
                             visible = false;
                         }
                     }
