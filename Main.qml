@@ -38,6 +38,7 @@ Window {
                 w: item.w,
                 h: item.h,
                 textStr: item.textStr,
+                filled: item.filled === true,
                 flipX: item.flipX !== undefined ? item.flipX : false,
                 flipY: item.flipY !== undefined ? item.flipY : false
             });
@@ -365,6 +366,22 @@ Window {
             ToolButtonIcon { text: "↗"; toolName: "arrow" }
             ToolButtonIcon { text: "A"; toolName: "text" }
 
+            ToolButton {
+                text: "🪣"
+                font.pixelSize: 20
+                enabled: selectedIndex >= 0 && selectedIndex < shapeModel.count &&
+                         (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")
+                onClicked: {
+                    var selectedShape = shapeModel.get(selectedIndex);
+                    shapeModel.setProperty(selectedIndex, "filled", selectedShape.filled !== true);
+                    isSaved = false;
+                    saveState();
+                }
+                ToolTip.visible: hovered
+                Layout.preferredHeight: 40
+                Layout.preferredWidth: 40
+            }
+
             Rectangle { width: 2; height: parent.height - 10; color: "#999" }
 
             GridLayout {
@@ -578,6 +595,13 @@ Window {
                         return Math.abs(dist) <= margin;
                     }
 
+                    function hitTestFilledEllipse(mx, my, x, y, w, h) {
+                        if (w <= 0 || h <= 0) return false;
+                        var dx = (mx - (x + w / 2)) / (w / 2);
+                        var dy = (my - (y + h / 2)) / (h / 2);
+                        return dx * dx + dy * dy <= 1;
+                    }
+
                     function hitTestFill(mx, my, x, y, w, h) {
                         var margin = 5 / captureArea.scale;
                         return (mx >= x - margin && mx <= x + w + margin && my >= y - margin && my <= y + h + margin);
@@ -660,7 +684,11 @@ Window {
                                 if (item.type === "text") {
                                     hit = hitTestFill(mouse.x, mouse.y, item.x, item.y, item.w, item.h);
                                 } else if (item.type === "circle") {
-                                    hit = hitTestCircle(mouse.x, mouse.y, item.x, item.y, item.w, item.h, item.thickness);
+                                    hit = item.filled === true
+                                        ? hitTestFilledEllipse(mouse.x, mouse.y, item.x, item.y, item.w, item.h)
+                                        : hitTestCircle(mouse.x, mouse.y, item.x, item.y, item.w, item.h, item.thickness);
+                                } else if (item.type === "rect" && item.filled === true) {
+                                    hit = hitTestFill(mouse.x, mouse.y, item.x, item.y, item.w, item.h);
                                 } else if (item.type === "arrow") {
                                     hit = hitTestArrow(mouse.x, mouse.y, item.x, item.y, item.w, item.h, item.thickness, item.flipX, item.flipY);
                                 } else {
@@ -705,6 +733,7 @@ Window {
                             w: 0,
                             h: 0,
                             textStr: "",
+                            filled: false,
                             flipX: false,
                             flipY: false
                         })
@@ -970,7 +999,7 @@ Window {
 
                         Rectangle {
                             anchors.fill: parent
-                            color: "transparent"
+                            color: model.filled === true ? model.color : "transparent"
                             border.color: model.color
                             border.width: model.thickness
                             visible: model.type === "rect"
@@ -978,7 +1007,7 @@ Window {
 
                         Rectangle {
                             anchors.fill: parent
-                            color: "transparent"
+                            color: model.filled === true ? model.color : "transparent"
                             border.color: model.color
                             border.width: model.thickness
                             radius: Math.max(width, height)
