@@ -420,7 +420,6 @@ Window {
                     isSaved = false;
                     saveState();
                 }
-                ToolTip.visible: hovered
                 Layout.preferredHeight: 40
                 Layout.preferredWidth: 40
             }
@@ -972,6 +971,7 @@ Window {
                                 } else {
                                     isSaved = false;
                                     saveState();
+                                    currentTool = "none";
                                 }
                             }
                             selectedIndex = -1;
