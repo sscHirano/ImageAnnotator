@@ -7,7 +7,7 @@ import QtQuick.Dialogs
 
 Window {
     id: mainWindow
-    width: 900
+    width: 1000
     height: 600
     visible: true
     title: qsTr("Image Annotator") + (isSaved ? "" : " *")
@@ -161,6 +161,23 @@ Window {
         }
     }
 
+    MessageDialog {
+        id: helpDialog
+        title: "ヘルプ"
+        text: "ショートカットキー
+        V: 選択ツール
+        C: 円ツール
+        S: 四角形ツール
+        T: テキストツール
+        A: 矢印ツール
+        F: 選択中の円・四角形の塗りつぶしを切り替え
+        Ctrl+Z / Ctrl+Y: Undo / Redo
+        Delete: 選択図形を削除
+        Ctrl+S: 名前を付けて保存
+        Ctrl+C / Ctrl+V: 注釈画像のコピー / 画像の貼り付け"
+        buttons: MessageDialog.Close
+    }
+
     FileDialog {
         id: saveDialog
         title: "Save Image"
@@ -185,6 +202,7 @@ Window {
     onClosing: (close_event) => {
         if (!isSaved && shapeModel.count > 0) {
             close_event.accepted = false;
+            helpDialog.open();
             exitDialog.open();
         }
     }
@@ -520,6 +538,13 @@ Window {
                     icon.source: "icons/clear.svg"
                     onClicked: clearConfirmDialog.open()
                     ToolTip.visible: hovered; ToolTip.text: "Clear All Shapes"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
+
+                ToolButton { 
+                    text: "?"
+                    onClicked: helpDialog.open()
+                    ToolTip.visible: hovered; ToolTip.text: "help"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
             }
