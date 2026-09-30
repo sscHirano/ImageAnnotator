@@ -117,15 +117,23 @@ Window {
     MessageDialog {
         id: discardDialog
         title: "確認"
-        text: "保存されていない変更が破棄されますが、別の画像へ移動しますか？"
+        text: "保存されていない変更が破棄されます。続行しますか？"
         buttons: MessageDialog.Yes | MessageDialog.No
         property int pendingDirection: 0
+        property string pendingImageUrl: ""
+        property bool pendingImageIsPasted: false
         onAccepted: {
             shapeModel.clear();
             history = [];
             historyIndex = -1;
             isSaved = true;
-            performSwitch(pendingDirection);
+            if (pendingImageUrl !== "") {
+                loadImage(pendingImageUrl, pendingImageIsPasted);
+                pendingImageUrl = "";
+                pendingImageIsPasted = false;
+            } else {
+                performSwitch(pendingDirection);
+            }
         }
     }
 
@@ -270,7 +278,9 @@ Window {
         if (isPastedImage) return;
         if (folderModel.count <= 1 || mainImage.source == "") return;
         
-        if (shapeModel.count > 0 && !isSaved) {
+        if (!isSaved) {
+            discardDialog.pendingImageUrl = "";
+            discardDialog.pendingImageIsPasted = false;
             discardDialog.pendingDirection = direction;
             discardDialog.open();
         } else {
@@ -311,7 +321,13 @@ Window {
         if (ClipboardHelper.hasImage()) {
             var url = ClipboardHelper.pasteImageToTempFile();
             if (url !== "") {
-                loadImage(url, true);
+                if (!isSaved) {
+                    discardDialog.pendingImageUrl = url;
+                    discardDialog.pendingImageIsPasted = true;
+                    discardDialog.open();
+                } else {
+                    loadImage(url, true);
+                }  
             }
         }
     }
@@ -1246,7 +1262,13 @@ Window {
         onDropped: (drop) => {
             mainWindow.requestActivate();
             if (drop.hasUrls && drop.urls.length > 0) {
-                loadImage(String(drop.urls[0]), false);
+                if (!isSaved) {
+                    discardDialog.pendingImageUrl = String(drop.urls[0]);
+                    discardDialog.pendingImageIsPasted = false;
+                    discardDialog.open();
+                } else {
+                    loadImage(String(drop.urls[0]), false);
+                }                 
             }
         }
     }
