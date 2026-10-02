@@ -62,6 +62,31 @@ Window {
         isApplyingHistory = false;
     }
 
+    function repeatShape() {
+        if (selectedIndex < 0 || selectedIndex >= shapeModel.count) {
+            return;
+        }
+        var item = shapeModel.get(selectedIndex);
+        var copyShape = {
+            type: item.type,
+            color: item.color,
+            thickness: item.thickness,
+            x: item.x + 10,
+            y: item.y + 10,
+            w: item.w,
+            h: item.h,
+            textStr: item.textStr,
+            filled: item.filled === true,
+            flipX: item.flipX !== undefined ? item.flipX : false,
+            flipY: item.flipY !== undefined ? item.flipY : false
+        };
+        shapeModel.append(copyShape);
+        selectedIndex = shapeModel.count -1;
+        isSaved = false;
+        saveState();
+    }
+
+
     function undoShape() {
         if (historyIndex > 0) {
             historyIndex--;
@@ -171,6 +196,7 @@ Window {
         T: テキストツール
         A: 矢印ツール
         F: 選択中の円・四角形の塗りつぶしを切り替え
+        R: 選択図形のリピート
         Ctrl+Z / Ctrl+Y: Undo / Redo
         Delete: 選択図形を削除
         Ctrl+S: 名前を付けて保存
@@ -202,7 +228,6 @@ Window {
     onClosing: (close_event) => {
         if (!isSaved && shapeModel.count > 0) {
             close_event.accepted = false;
-            helpDialog.open();
             exitDialog.open();
         }
     }
@@ -249,6 +274,15 @@ Window {
             shapeModel.setProperty(selectedIndex, "filled", selectedShape.filled !== true);
             isSaved = false;
             saveState();
+        }
+    }
+
+    Shortcut {
+        sequence: "R"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: {
+            repeatShape();
         }
     }
 
@@ -543,6 +577,7 @@ Window {
 
                 ToolButton { 
                     text: "?"
+                    font.pixelSize: 20
                     onClicked: helpDialog.open()
                     ToolTip.visible: hovered; ToolTip.text: "help"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
@@ -1009,13 +1044,14 @@ Window {
                                 var item = shapeModel.get(lastIdx);
                                 if (item.w < 5 && item.h < 5) {
                                     shapeModel.remove(lastIdx);
+                                    selectedIndex = -1;
                                 } else {
                                     isSaved = false;
                                     saveState();
                                     currentTool = "none";
+                                    selectedIndex = lastIdx;                                    
                                 }
                             }
-                            selectedIndex = -1;
                         }
                     }
                 }
