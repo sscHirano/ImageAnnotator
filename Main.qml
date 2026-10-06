@@ -7,7 +7,7 @@ import QtQuick.Dialogs
 
 Window {
     id: mainWindow
-    width: 1000
+    width: 1050
     height: 600
     visible: true
     title: qsTr("Image Annotator") + (isSaved ? "" : " *")
@@ -401,6 +401,30 @@ Window {
         });
     }
 
+    // クリップボード更新およびキャンセルを検知してウィンドウを再表示する
+    Connections {
+        target: ClipboardHelper
+        function onClipboardChanged() {
+            mainWindow.showNormal();
+            mainWindow.raise();
+            mainWindow.requestActivate();
+        }
+        function onCaptureCanceled() {
+            mainWindow.showNormal();
+            mainWindow.raise();
+            mainWindow.requestActivate();
+        }
+    }
+
+    function createNewScreenshot() {
+        // ウィンドウを最小化
+        mainWindow.showMinimized();
+        // スクリーンショット機能の起動
+        Qt.openUrlExternally("ms-screenclip:");
+        // クリップボードの監視開始
+        ClipboardHelper.watchClipboard();
+    }
+
     Rectangle {
         id: toolbar
         width: parent.width
@@ -415,6 +439,12 @@ Window {
 
             RowLayout {
                 spacing: 2
+                ToolButton { 
+                    text: "＋"
+                    onClicked: createNewScreenshot();
+                    ToolTip.visible: hovered; ToolTip.text: "新しいスクリーンショット"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
                 ToolButton { 
                     icon.source: "icons/paste.svg"
                     onClicked: pasteImage()
