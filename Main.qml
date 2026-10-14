@@ -245,6 +245,23 @@ Window {
         }
     }
 
+    function openSaveDialog() {
+        var now = new Date();
+        var timestamp = now.getFullYear()
+                + padDatePart(now.getMonth() + 1)
+                + padDatePart(now.getDate()) + "_"
+                + padDatePart(now.getHours())
+                + padDatePart(now.getMinutes())
+                + padDatePart(now.getSeconds());
+
+        saveDialog.currentFile = timestamp;
+        saveDialog.open();
+    }
+
+    function padDatePart(value) {
+        return value < 10 ? "0" + value : String(value);
+    }
+
     onClosing: (close_event) => {
         if (!isSaved && shapeModel.count > 0) {
             close_event.accepted = false;
@@ -252,7 +269,7 @@ Window {
         }
     }
 
-    Shortcut { sequence: "Ctrl+S"; onActivated: saveDialog.open(); context: Qt.ApplicationShortcut }
+    Shortcut { sequence: "Ctrl+S"; onActivated: openSaveDialog(); context: Qt.ApplicationShortcut }
 
     Shortcut {
         sequence: "V"
