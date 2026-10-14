@@ -129,8 +129,8 @@ Window {
         selectedIndexes = [];
             isSaved = false;
             saveState();
-        }
     }
+    
 
     function nudgeShape(dx, dy) {
         if (selectedIndexes.length > 1) {
