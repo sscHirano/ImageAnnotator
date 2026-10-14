@@ -18,6 +18,7 @@ Window {
     property int currentThickness: 5
     property bool isPastedImage: false
     property int selectedIndex: -1
+    property var selectedIndexes: []
     property bool isSaved: true
 
     property var history: []
@@ -92,11 +93,13 @@ Window {
             historyIndex--;
             applyState(history[historyIndex]);
             selectedIndex = -1;
+            selectedIndexes = [];
             isSaved = false;
         } else if (historyIndex === 0) {
             historyIndex = -1;
             applyState([]);
             selectedIndex = -1;
+            selectedIndexes = [];
             isSaved = false;
         }
     }
@@ -111,16 +114,33 @@ Window {
     }
 
     function deleteSelectedShape() {
-        if (selectedIndex >= 0 && selectedIndex < shapeModel.count) {
+        if (selectedIndexes.length > 1) {
+            var indexesToDelete = selectedIndexes.slice().sort(function(a, b) {
+                return b - a;
+            });
+            console.log("indexesToDelete:", JSON.stringify(indexesToDelete));
+            for (var i = 0; i < indexesToDelete.length; i++) {
+                shapeModel.remove(indexesToDelete[i]);
+            }
+        } else if (selectedIndex >= 0 && selectedIndex < shapeModel.count) {
             shapeModel.remove(selectedIndex);
+        }
             selectedIndex = -1;
+        selectedIndexes = [];
             isSaved = false;
             saveState();
         }
     }
 
     function nudgeShape(dx, dy) {
-        if (selectedIndex >= 0 && selectedIndex < shapeModel.count) {
+        if (selectedIndexes.length > 1) {
+            for (var i = 0; i < selectedIndexes.length; i++) {
+                var item = shapeModel.get(selectedIndexes[i]);
+                shapeModel.setProperty(selectedIndexes[i], "x", item.x + dx);
+                shapeModel.setProperty(selectedIndexes[i], "y", item.y + dy);
+            }
+            isSaved = false;
+        } else if (selectedIndex >= 0 && selectedIndex < shapeModel.count) {
             var item = shapeModel.get(selectedIndex);
             shapeModel.setProperty(selectedIndex, "x", item.x + dx);
             shapeModel.setProperty(selectedIndex, "y", item.y + dy);
@@ -510,11 +530,18 @@ Window {
             ToolButton {
                 text: "🪣"
                 font.pixelSize: 20
-                enabled: selectedIndex >= 0 && selectedIndex < shapeModel.count &&
-                         (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")
                 onClicked: {
+                    if (selectedIndexes.length > 1 && (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
+                        console.log("selectedIndexes in");
+                        for (var i = 0; i < selectedIndexes.length; i++) {    
+                            var selectedShapes = shapeModel.get(selectedIndexes[i]);
+                            shapeModel.setProperty(selectedIndexes[i], "filled", selectedShapes.filled !== true);
+                        }
+                    } else if (selectedIndex >= 0 && selectedIndex < shapeModel.count &&
+                         (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
                     var selectedShape = shapeModel.get(selectedIndex);
                     shapeModel.setProperty(selectedIndex, "filled", selectedShape.filled !== true);
+                    }
                     isSaved = false;
                     saveState();
                 }
@@ -542,11 +569,15 @@ Window {
                             anchors.fill: parent
                             onClicked: {
                                 currentColor = modelData;
-                                if (selectedIndex >= 0) {
+                                if (selectedIndexes.length > 1) {
+                                    for (var i = 0; i < selectedIndexes.length; i++) {    
+                                    shapeModel.setProperty(selectedIndexes[i], "color", modelData);
+                                    }
+                                } else if (selectedIndex >= 0) {
                                     shapeModel.setProperty(selectedIndex, "color", modelData);
+                                }
                                     isSaved = false;
                                     saveState();
-                                }
                                 if (textInput.visible) {
                                     textInput.forceActiveFocus();
                                 }
@@ -565,11 +596,15 @@ Window {
                 value: currentThickness
                 onValueModified: {
                     currentThickness = value;
-                    if (selectedIndex >= 0) {
+                    if (selectedIndexes.length > 1) {
+                        for(var i = 0; i < selectedIndexes.length; i++) {                            
+                            shapeModel.setProperty(selectedIndexes[i], "thickness", value);
+                        }
+                    } else if (selectedIndex >= 0) {
                         shapeModel.setProperty(selectedIndex, "thickness", value);
+                    }
                         isSaved = false;
                         saveState();
-                    }
                 }
                 Layout.preferredWidth: 100
             }
@@ -708,6 +743,8 @@ Window {
                     property int dragStartY: 0
                     property int shapeStartX: 0
                     property int shapeStartY: 0
+                    property var selectedDragShape: []
+
                     
                     property string isDraggingHandle: ""
 
@@ -790,6 +827,24 @@ Window {
                         textInput.cursorPosition = textInput.text.length;
                     }
 
+                    function saveSelectedDragShape() {
+                        var state = [];
+                        for (var j = 0; j < selectedIndexes.length; j++) {
+                            var modelIndex = selectedIndexes[j];
+                            var selectedItem = shapeModel.get(modelIndex);
+                            state.push({
+                                selectedIndex: modelIndex,
+                                x: selectedItem.x,
+                                y: selectedItem.y,
+                                w: selectedItem.w,
+                                h: selectedItem.h,
+                                flipX: selectedItem.flipX,
+                                flipY: selectedItem.flipY
+                            });
+                        }
+                        selectedDragShape = state;
+                    }
+
                     onPressed: (mouse) => {
                         contentArea.forceActiveFocus();
                         
@@ -799,19 +854,26 @@ Window {
                         }
 
                         if (currentTool === "none") {
-                            if (selectedIndex >= 0) {
-                                var selItem = shapeModel.get(selectedIndex);
+                            for (var handleIndex = shapeModel.count - 1; handleIndex >= 0; handleIndex--) {
+                                if (selectedIndexes.indexOf(handleIndex) === -1) {
+                                    continue;
+                                }
+                                var selItem = shapeModel.get(handleIndex);
                                 if (selItem.type === "arrow") {
                                     var sx = selItem.x + (selItem.flipX ? selItem.w : 0);
                                     var sy = selItem.y + (selItem.flipY ? selItem.h : 0);
                                     var ex = selItem.x + (selItem.flipX ? 0 : selItem.w);
                                     var ey = selItem.y + (selItem.flipY ? 0 : selItem.h);
                                     if (hitTestHandle(mouse.x, mouse.y, sx, sy)) {
+                                        selectedIndex = handleIndex;
                                         isDraggingHandle = "start";
+                                        saveSelectedDragShape();
                                         return;
                                     }
                                     if (hitTestHandle(mouse.x, mouse.y, ex, ey)) {
+                                        selectedIndex = handleIndex;
                                         isDraggingHandle = "end";
+                                        saveSelectedDragShape();
                                         return;
                                     }
                                 } else if (selItem.type === "rect" || selItem.type === "circle") {
@@ -819,10 +881,30 @@ Window {
                                     var ty = selItem.y;
                                     var bx = selItem.x + selItem.w;
                                     var by = selItem.y + selItem.h;
-                                    if (hitTestHandle(mouse.x, mouse.y, tx, ty)) { isDraggingHandle = "tl"; return; }
-                                    if (hitTestHandle(mouse.x, mouse.y, bx, ty)) { isDraggingHandle = "tr"; return; }
-                                    if (hitTestHandle(mouse.x, mouse.y, tx, by)) { isDraggingHandle = "bl"; return; }
-                                    if (hitTestHandle(mouse.x, mouse.y, bx, by)) { isDraggingHandle = "br"; return; }
+                                    if (hitTestHandle(mouse.x, mouse.y, tx, ty)) {
+                                        selectedIndex = handleIndex;
+                                        isDraggingHandle = "tl";
+                                        saveSelectedDragShape();
+                                        return;
+                                    }
+                                    if (hitTestHandle(mouse.x, mouse.y, bx, ty)) {
+                                        selectedIndex = handleIndex;
+                                        isDraggingHandle = "tr";
+                                        saveSelectedDragShape();
+                                        return;
+                                    }
+                                    if (hitTestHandle(mouse.x, mouse.y, tx, by)) {
+                                        selectedIndex = handleIndex;
+                                        isDraggingHandle = "bl";
+                                        saveSelectedDragShape();
+                                        return;
+                                    }
+                                    if (hitTestHandle(mouse.x, mouse.y, bx, by)) {
+                                        selectedIndex = handleIndex;
+                                        isDraggingHandle = "br";
+                                        saveSelectedDragShape();
+                                        return;
+                                    }
                                 }
                             }
                             
@@ -845,17 +927,34 @@ Window {
                                 
                                 if (hit) {
                                     selectedIndex = i;
+                                    if (mouse.modifiers & Qt.ShiftModifier) {
+                                        if (selectedIndexes.indexOf(i) === -1) {
+                                            selectedIndexes = selectedIndexes.concat([i]);
+                                            
+                                        }
+                                    } else {
+                                        if (selectedIndexes.indexOf(selectedIndex) == -1) {
+                                            selectedIndexes = [i];
+                                            selectedDragShape = [];
+                                        }
+                                    }
+                                    // 線の太さ
                                     currentThickness = item.thickness;
                                     currentColor = item.color;
                                     dragStartX = mouse.x;
                                     dragStartY = mouse.y;
                                     shapeStartX = item.x;
                                     shapeStartY = item.y;
+
+                                    saveSelectedDragShape();
+                                    // 図形を選択状態
                                     isDraggingShape = true;
                                     return;
                                 }
                             }
                             selectedIndex = -1;
+                            selectedIndexes = [];
+                            selectedDragShape = [];
                             return;
                         }
 
@@ -946,10 +1045,20 @@ Window {
                                 isSaved = false;
                                 return;
                             } else if (selItem.type === "rect" || selItem.type === "circle") {
-                                var tx = selItem.x;
-                                var ty = selItem.y;
-                                var bx = selItem.x + selItem.w;
-                                var by = selItem.y + selItem.h;
+                                var activeStart = null;
+                                if (selectedDragShape.length > 1) {
+                                    for (var j = 0; j < selectedDragShape.length; j++) {
+                                        if (selectedDragShape[j].selectedIndex === selectedIndex) {
+                                            activeStart = selectedDragShape[j];
+                                            break;
+                                        }
+                                    }
+                                }
+                                var resizeStart = activeStart !== null ? activeStart : selItem;
+                                var tx = resizeStart.x;
+                                var ty = resizeStart.y;
+                                var bx = resizeStart.x + resizeStart.w;
+                                var by = resizeStart.y + resizeStart.h;
                                 
                                 var signX = 1;
                                 var signY = 1;
@@ -992,6 +1101,45 @@ Window {
                                     }
                                 }
 
+                                // 複数選択時は、操作対象の図形を基準に各図形の開始位置・サイズを変換する
+                                if (selectedDragShape.length > 1) {
+                                    if (activeStart !== null && activeStart.w !== 0 && activeStart.h !== 0) {
+                                        var anchorX = (isDraggingHandle === "tl" || isDraggingHandle === "bl")
+                                            ? activeStart.x + activeStart.w : activeStart.x;
+                                        var anchorY = (isDraggingHandle === "tl" || isDraggingHandle === "tr")
+                                            ? activeStart.y + activeStart.h : activeStart.y;
+                                        var scaleX = (bx - tx) / activeStart.w;
+                                        var scaleY = (by - ty) / activeStart.h;
+
+                                        for (var k = 0; k < selectedDragShape.length; k++) {
+                                            var dragItem = selectedDragShape[k];
+                                            var transformedLeft = anchorX + (dragItem.x - anchorX) * scaleX;
+                                            var transformedRight = anchorX + (dragItem.x + dragItem.w - anchorX) * scaleX;
+                                            var transformedTop = anchorY + (dragItem.y - anchorY) * scaleY;
+                                            var transformedBottom = anchorY + (dragItem.y + dragItem.h - anchorY) * scaleY;
+
+                                            shapeModel.setProperty(dragItem.selectedIndex, "x",
+                                                                   Math.min(transformedLeft, transformedRight));
+                                            shapeModel.setProperty(dragItem.selectedIndex, "y",
+                                                                   Math.min(transformedTop, transformedBottom));
+                                            shapeModel.setProperty(dragItem.selectedIndex, "w",
+                                                                   Math.abs(transformedRight - transformedLeft));
+                                            shapeModel.setProperty(dragItem.selectedIndex, "h",
+                                                                   Math.abs(transformedBottom - transformedTop));
+                                            if (dragItem.flipX !== undefined) {
+                                                shapeModel.setProperty(dragItem.selectedIndex, "flipX",
+                                                                       scaleX < 0 ? !dragItem.flipX : dragItem.flipX);
+                                            }
+                                            if (dragItem.flipY !== undefined) {
+                                                shapeModel.setProperty(dragItem.selectedIndex, "flipY",
+                                                                       scaleY < 0 ? !dragItem.flipY : dragItem.flipY);
+                                            }
+                                        }
+                                    }
+                                    isSaved = false;
+                                    return;
+                                }
+
                                 shapeModel.setProperty(selectedIndex, "x", Math.min(tx, bx));
                                 shapeModel.setProperty(selectedIndex, "y", Math.min(ty, by));
                                 shapeModel.setProperty(selectedIndex, "w", Math.abs(bx - tx));
@@ -1004,6 +1152,18 @@ Window {
                         if (currentTool === "none" && isDraggingShape && selectedIndex >= 0) {
                             var dx = mouse.x - dragStartX;
                             var dy = mouse.y - dragStartY;
+
+                            // 複数選択している場合、それぞれの図形のxy軸にマウス移動距離を足す
+                            if (selectedDragShape.length !== 0) {
+                                for (var i = 0; i < selectedDragShape.length; i++) {
+                                    shapeModel.setProperty(selectedDragShape[i].selectedIndex, "x", selectedDragShape[i].x + dx);
+                                    shapeModel.setProperty(selectedDragShape[i].selectedIndex, "y", selectedDragShape[i].y + dy);
+                                }                                
+                                isSaved = false;
+                                return;
+                            }
+
+                            // XY軸それぞれ、図形のドラック開始時の座標に＋移動距離をセットしている
                             shapeModel.setProperty(selectedIndex, "x", shapeStartX + dx);
                             shapeModel.setProperty(selectedIndex, "y", shapeStartY + dy);
                             isSaved = false;
@@ -1080,6 +1240,7 @@ Window {
                                     saveState();
                                     currentTool = "none";
                                     selectedIndex = lastIdx;                                    
+                                    selectedIndexes = [lastIdx];                                    
                                 }
                             }
                         }
@@ -1095,7 +1256,7 @@ Window {
                         width: model.w
                         height: model.h
 
-                        property bool isSelected: index === selectedIndex
+                        property bool isSelected: selectedIndexes.indexOf(index) !== -1
                         property real hScale: 1.0 / captureArea.scale
 
                         Item {
