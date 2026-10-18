@@ -43,3 +43,6 @@ endif()
 target_link_libraries(appImageAnnotator
     PRIVATE Qt6::Quick Qt6::Svg
 )
+
+enable_testing()
+add_subdirectory(tests)

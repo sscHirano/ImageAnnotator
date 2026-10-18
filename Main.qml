@@ -20,6 +20,8 @@ Window {
     property int selectedIndex: -1
     property var selectedIndexes: []
     property bool isSaved: true
+    property alias shapeModel: shapeModel
+    property alias drawArea: drawArea 
 
     property var history: []
     property int historyIndex: -1
