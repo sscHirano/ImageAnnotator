@@ -480,6 +480,34 @@ Window {
         }
     }
 
+    function applyFillColor() {
+        if (selectedIndexes.length > 1 && (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
+            for (var i = 0; i < selectedIndexes.length; i++) {    
+                var selectedShapes = shapeModel.get(selectedIndexes[i]);
+                shapeModel.setProperty(selectedIndexes[i], "filled", selectedShapes.filled !== true);
+            }
+        } else if (selectedIndex >= 0 && selectedIndex < shapeModel.count &&
+                (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
+            var selectedShape = shapeModel.get(selectedIndex);
+            shapeModel.setProperty(selectedIndex, "filled", selectedShape.filled !== true);
+        }
+        isSaved = false;
+        saveState();
+    }
+
+    function applyThickness(thickness) {
+        currentThickness = thickness;
+        if (selectedIndexes.length > 1) {
+            for(var i = 0; i < selectedIndexes.length; i++) {                            
+                shapeModel.setProperty(selectedIndexes[i], "thickness", thickness);
+            }
+        } else if (selectedIndex >= 0) {
+            shapeModel.setProperty(selectedIndex, "thickness", thickness);
+        }
+        isSaved = false;
+        saveState();
+    }   
+
     Rectangle {
         id: toolbar
         width: parent.width
@@ -566,19 +594,7 @@ Window {
                 text: "🪣"
                 font.pixelSize: 20
                 onClicked: {
-                    if (selectedIndexes.length > 1 && (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
-                        console.log("selectedIndexes in");
-                        for (var i = 0; i < selectedIndexes.length; i++) {    
-                            var selectedShapes = shapeModel.get(selectedIndexes[i]);
-                            shapeModel.setProperty(selectedIndexes[i], "filled", selectedShapes.filled !== true);
-                        }
-                    } else if (selectedIndex >= 0 && selectedIndex < shapeModel.count &&
-                         (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
-                    var selectedShape = shapeModel.get(selectedIndex);
-                    shapeModel.setProperty(selectedIndex, "filled", selectedShape.filled !== true);
-                    }
-                    isSaved = false;
-                    saveState();
+                    applyFillColor();
                 }
                 Layout.preferredHeight: 40
                 Layout.preferredWidth: 40
@@ -618,16 +634,7 @@ Window {
                 to: 100
                 value: currentThickness
                 onValueModified: {
-                    currentThickness = value;
-                    if (selectedIndexes.length > 1) {
-                        for(var i = 0; i < selectedIndexes.length; i++) {                            
-                            shapeModel.setProperty(selectedIndexes[i], "thickness", value);
-                        }
-                    } else if (selectedIndex >= 0) {
-                        shapeModel.setProperty(selectedIndex, "thickness", value);
-                    }
-                        isSaved = false;
-                        saveState();
+                    applyThickness(value);
                 }
                 Layout.preferredWidth: 100
             }
