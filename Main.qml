@@ -464,6 +464,22 @@ Window {
         ClipboardHelper.watchClipboard();
     }
 
+    function applyColor(color) {
+        currentColor = color;
+        if (selectedIndexes.length > 1) {
+            for (var i = 0; i < selectedIndexes.length; i++) {    
+                shapeModel.setProperty(selectedIndexes[i], "color", color);
+            }
+        } else if (selectedIndex >= 0) {
+            shapeModel.setProperty(selectedIndex, "color", color);
+        }
+        isSaved = false;
+        saveState();
+        if (textInput.visible) {
+            textInput.forceActiveFocus();
+        }
+    }
+
     Rectangle {
         id: toolbar
         width: parent.width
@@ -587,19 +603,7 @@ Window {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                currentColor = modelData;
-                                if (selectedIndexes.length > 1) {
-                                    for (var i = 0; i < selectedIndexes.length; i++) {    
-                                    shapeModel.setProperty(selectedIndexes[i], "color", modelData);
-                                    }
-                                } else if (selectedIndex >= 0) {
-                                    shapeModel.setProperty(selectedIndex, "color", modelData);
-                                }
-                                    isSaved = false;
-                                    saveState();
-                                if (textInput.visible) {
-                                    textInput.forceActiveFocus();
-                                }
+                                applyColor(modelData);
                             }
                         }
                     }
