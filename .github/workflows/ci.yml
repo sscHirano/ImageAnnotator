@@ -24,8 +24,11 @@ jobs:
         run: |
           cppcheck --enable=warning,style,performance,portability \
                    --library=qt \
+                   --language=c++ \
+                   --std=c++17 \
                    --inline-suppr \
                    --suppress=missingIncludeSystem \
+                   --suppress=missingInclude \
                    --suppress=unusedFunction \
                    --suppress=unmatchedSuppression \
                    --error-exitcode=1 \
@@ -46,7 +49,6 @@ jobs:
         with:
           version: '6.8.2'
           arch: 'win64_msvc2022_64'
-          modules: 'qtsvg'
           cache: true
 
       - name: Lint QML (qmllint)
