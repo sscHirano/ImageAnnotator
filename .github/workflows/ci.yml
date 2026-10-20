@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  static-analysis:
+    name: Static Analysis (Cppcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Cppcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+
+      - name: Run Cppcheck (C++)
+        run: |
+          cppcheck --enable=warning,style,performance,portability \
+                   --library=qt \
+                   --inline-suppr \
+                   --suppress=missingIncludeSystem \
+                   --suppress=unusedFunction \
+                   --suppress=unmatchedSuppression \
+                   --error-exitcode=1 \
+                   main.cpp clipboardhelper.cpp clipboardhelper.h tests/tst_clipboardhelper.cpp
+
+  unit-tests:
+    name: Unit Tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.2'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtsvg'
+          cache: true
+
+      - name: Lint QML (qmllint)
+        run: |
+          qmllint Main.qml tests/tst_main.qml
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Project & Tests
+        run: |
+          cmake --build build
+
+      - name: Run Unit Tests (CTest)
+        run: |
+          ctest --test-dir build --output-on-failure -C Release
