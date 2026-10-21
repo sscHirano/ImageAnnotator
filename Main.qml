@@ -193,6 +193,9 @@ Window {
             isSaved = true;
             Qt.quit();
         }
+        onRejected: {
+            mainWindow.flags = mainWindow.flags & ~Qt.WindowStaysOnTopHint;
+        }
     }
 
     MessageDialog {
@@ -267,7 +270,17 @@ Window {
     onClosing: (close_event) => {
         if (!isSaved && shapeModel.count > 0) {
             close_event.accepted = false;
-            exitDialog.open();
+
+            if (mainWindow.visibility === Window.Minimized) {
+                mainWindow.showNormal();
+                mainWindow.raise();
+                mainWindow.requestActivate();
+                mainWindow.flags = mainWindow.flags | Qt.WindowStaysOnTopHint;
+            }
+
+            Qt.callLater(() => {
+                exitDialog.open();
+            });
         }
     }
 
