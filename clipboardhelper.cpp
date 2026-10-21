@@ -77,7 +77,7 @@ void ClipboardHelper::watchClipboard() {
     m_isWatching = true;
     m_clippingWindowAppeared = false;
 
-    QClipboard *clipboard = QGuiApplication::clipboard();
+    const QClipboard *clipboard = QGuiApplication::clipboard();
     connect(clipboard, &QClipboard::dataChanged, this, &ClipboardHelper::onClipboardDataChanged, Qt::UniqueConnection);
 
     m_cancelWatchTimer->start();
