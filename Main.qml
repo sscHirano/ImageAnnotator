@@ -216,7 +216,7 @@ Window {
     MessageDialog {
         id: helpDialog
         title: "ヘルプ"
-        text: "ショートカットキー
+        text: `ショートカットキー
         V: 選択ツール
         C: 円ツール
         S: 四角形ツール
@@ -227,7 +227,7 @@ Window {
         Ctrl+Z / Ctrl+Y: Undo / Redo
         Delete: 選択図形を削除
         Ctrl+S: 名前を付けて保存
-        Ctrl+C / Ctrl+V: 注釈画像のコピー / 画像の貼り付け"
+        Ctrl+C / Ctrl+V: 注釈画像のコピー / 画像の貼り付け`
         buttons: MessageDialog.Close
     }
 
@@ -382,7 +382,7 @@ Window {
 
     function switchImage(direction) {
         if (isPastedImage) return;
-        if (folderModel.count <= 1 || mainImage.source == "") return;
+        if (folderModel.count <= 1 || String(mainImage.source) === "") return;
         
         if (!isSaved) {
             discardDialog.pendingImageUrl = "";
@@ -439,7 +439,7 @@ Window {
     }
 
     function copyAnnotatedImage() {
-        if (mainImage.source == "") return;
+        if (String(mainImage.source) === "") return;
         
         var oldSelected = selectedIndex;
         selectedIndex = -1;
@@ -563,7 +563,11 @@ Window {
                 }
             }
 
-            Rectangle { width: 2; height: parent.height - 10; color: "#999" }
+            Rectangle {
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: 40
+                color: "#999"
+            }
 
             ButtonGroup { id: toolGroup }
             
@@ -573,8 +577,8 @@ Window {
                 property string text: ""
                 property bool checked: mainWindow.currentTool === toolName
                 
-                width: 40
-                height: parent.height - 10
+                implicitWidth: 40
+                implicitHeight: 40
                 Layout.alignment: Qt.AlignVCenter
 
                 Rectangle {
@@ -615,7 +619,11 @@ Window {
                 Layout.preferredWidth: 40
             }
 
-            Rectangle { width: 2; height: parent.height - 10; color: "#999" }
+            Rectangle {
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: 40
+                color: "#999"
+            }
 
             GridLayout {
                 columns: 6
@@ -643,7 +651,11 @@ Window {
                 }
             }
 
-            Rectangle { width: 2; height: parent.height - 10; color: "#999" }
+            Rectangle {
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: 40
+                color: "#999"
+            }
 
             Text { text: "Size:"; color: "black"; Layout.alignment: Qt.AlignVCenter }
             SpinBox {
@@ -656,7 +668,11 @@ Window {
                 Layout.preferredWidth: 100
             }
 
-            Rectangle { width: 2; height: parent.height - 10; color: "#999" }
+            Rectangle {
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: 40
+                color: "#999"
+            }
 
             RowLayout {
                 spacing: 2
@@ -672,7 +688,11 @@ Window {
                     ToolTip.visible: hovered; ToolTip.text: "Redo (Ctrl+Y)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
-                Rectangle { width: 1; height: 30; color: "#999" }
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 30
+                    color: "#999"
+                }
                 ToolButton { 
                     icon.source: "icons/delete.svg"
                     onClicked: mainWindow.deleteSelectedShape()
@@ -744,14 +764,14 @@ Window {
             color: "#888888"
             font.pixelSize: 20
             horizontalAlignment: Text.AlignHCenter
-            visible: mainImage.source == ""
+            visible: String(mainImage.source) === ""
         }
 
         Item {
             id: imageContainer
             anchors.fill: parent
             anchors.margins: 20
-            visible: mainImage.source != ""
+            visible: String(mainImage.source) !== ""
 
             Item {
                 id: captureArea
