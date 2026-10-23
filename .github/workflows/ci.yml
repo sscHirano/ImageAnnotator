@@ -9,11 +9,18 @@ on:
 
 jobs:
   static-analysis:
-    name: Static Analysis (Cppcheck)
+    name: Static Analysis (C++ & QML)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.2'
+          arch: 'linux_gcc_64'
+          cache: true
 
       - name: Install Cppcheck
         run: |
@@ -32,7 +39,11 @@ jobs:
                    --suppress=unusedFunction \
                    --suppress=unmatchedSuppression \
                    --error-exitcode=1 \
-                   main.cpp clipboardhelper.cpp clipboardhelper.h tests/tst_clipboardhelper.cpp
+                   main.cpp clipboardhelper.cpp tests/tst_clipboardhelper.cpp
+
+      - name: Run qmllint (QML)
+        run: |
+          qmllint --bare Main.qml tests/tst_main.qml
 
   unit-tests:
     name: Unit Tests (Windows)
@@ -51,10 +62,6 @@ jobs:
           arch: 'win64_msvc2022_64'
           cache: true
 
-      - name: Lint QML (qmllint)
-        run: |
-          qmllint Main.qml tests/tst_main.qml
-
       - name: Configure CMake
         run: |
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -63,6 +70,6 @@ jobs:
         run: |
           cmake --build build
 
-      - name: Run Unit Tests (CTest)
+      - name: Run QTest and Qt Quick Test (CTest)
         run: |
           ctest --test-dir build --output-on-failure -C Release
