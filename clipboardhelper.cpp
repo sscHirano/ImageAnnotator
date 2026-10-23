@@ -27,8 +27,8 @@ ClipboardHelper::~ClipboardHelper() {
 void ClipboardHelper::setupTempDirectory() {
     m_tempDirPath = QDir::temp().filePath("ImageAnnotator");
     QDir dir(m_tempDirPath);
-    if (!dir.exists()) {
-        dir.mkpath(".");
+    if (!dir.exists() && !dir.mkpath(".")) {
+        qWarning() << "Failed to create temporary directory:" << m_tempDirPath;
     }
 }
 
@@ -98,7 +98,7 @@ void ClipboardHelper::unwatchClipboard() {
     }
     m_isWatching = false;
 
-    QClipboard *clipboard = QGuiApplication::clipboard();
+    const QClipboard *clipboard = QGuiApplication::clipboard();
     disconnect(clipboard, &QClipboard::dataChanged, this, &ClipboardHelper::onClipboardDataChanged);
     m_cancelWatchTimer->stop();
     m_clippingWindowAppeared = false;
