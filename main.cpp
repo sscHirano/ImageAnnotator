@@ -1,7 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <QIcon>
+#include <QVariant>
 #include "clipboardhelper.h"
 
 int main(int argc, char *argv[])
@@ -15,7 +15,6 @@ int main(int argc, char *argv[])
     ClipboardHelper clipboardHelper;
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("ClipboardHelper", &clipboardHelper);
 
     QObject::connect(
         &engine,
@@ -24,6 +23,11 @@ int main(int argc, char *argv[])
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
     engine.loadFromModule("ImageAnnotator", "Main");
+    if (engine.rootObjects().isEmpty()) {
+        return -1;
+    }
+    engine.rootObjects().constFirst()->setProperty(
+        "clipboardHelper", QVariant::fromValue(&clipboardHelper));
 
     return app.exec();
 }
