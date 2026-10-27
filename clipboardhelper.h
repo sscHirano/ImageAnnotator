@@ -1,7 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QString>
-#include <QDir>
+#include <QTemporaryDir>
 
 #include <QTimer>
 
@@ -32,6 +32,7 @@ private:
     void cleanupTempDirectory();
     
     QString m_tempDirPath;
+    QTemporaryDir m_tempDir;
     QTimer *m_cancelWatchTimer = nullptr;
     bool m_clippingWindowAppeared = false;
     bool m_isWatching = false;

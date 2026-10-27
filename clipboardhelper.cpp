@@ -2,7 +2,6 @@
 #include <QGuiApplication>
 #include <QClipboard>
 #include <QImage>
-#include <QDir>
 #include <QUuid>
 #include <QUrl>
 #include <QFileInfo>
@@ -25,18 +24,15 @@ ClipboardHelper::~ClipboardHelper() {
 }
 
 void ClipboardHelper::setupTempDirectory() {
-    m_tempDirPath = QDir::temp().filePath("ImageAnnotator");
-    QDir dir(m_tempDirPath);
-    if (!dir.exists() && !dir.mkpath(".")) {
-        qWarning() << "Failed to create temporary directory:" << m_tempDirPath;
+    if (m_tempDir.isValid()) {
+        m_tempDirPath = m_tempDir.path();
+    } else {
+        qWarning() << "Failed to create temporary directory.";
     }
 }
 
 void ClipboardHelper::cleanupTempDirectory() {
-    QDir dir(m_tempDirPath);
-    if (dir.exists()) {
-        dir.removeRecursively();
-    }
+    m_tempDir.remove();
 }
 
 bool ClipboardHelper::hasImage() const {
@@ -45,7 +41,7 @@ bool ClipboardHelper::hasImage() const {
 
 QString ClipboardHelper::generateTempFilePath() {
     QString fileName = "capture_" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
-    return QUrl::fromLocalFile(QDir(m_tempDirPath).filePath(fileName)).toString();
+    return QUrl::fromLocalFile(m_tempDir.filePath(fileName)).toString();
 }
 
 QString ClipboardHelper::pasteImageToTempFile() {
@@ -53,7 +49,7 @@ QString ClipboardHelper::pasteImageToTempFile() {
     if (img.isNull()) return "";
 
     QString fileName = "paste_" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
-    QString filePath = QDir(m_tempDirPath).filePath(fileName);
+    QString filePath = m_tempDir.filePath(fileName);
 
     if (img.save(filePath)) {
         return QUrl::fromLocalFile(filePath).toString();
