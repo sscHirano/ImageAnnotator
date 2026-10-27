@@ -243,11 +243,15 @@ Window {
             else if (path.startsWith("file://")) path = path.substring(7);
 
             var oldSelected = mainWindow.selectedIndex;
+            var oldSelectedIndexes = mainWindow.selectedIndexes.slice();
             mainWindow.selectedIndex = -1;
+            mainWindow.selectedIndexes = [];
             captureArea.grabToImage(function(result) {
-                result.saveToFile(path);
+                if (result.saveToFile(path)) {
+                    mainWindow.isSaved = true;
+                }
                 mainWindow.selectedIndex = oldSelected;
-                mainWindow.isSaved = true;
+                mainWindow.selectedIndexes = oldSelectedIndexes;
             });
         }
     }
@@ -441,8 +445,10 @@ Window {
     function copyAnnotatedImage() {
         if (String(mainImage.source) === "") return;
         
-        var oldSelected = selectedIndex;
+        var oldSelectedIndex = selectedIndex;
+        var oldselectedIndexes = selectedIndexes;
         selectedIndex = -1;
+        selectedIndexes = [];
         
         captureArea.grabToImage(function(result) {
             var tempUrl = mainWindow.clipboardHelper.generateTempFilePath();
@@ -451,7 +457,8 @@ Window {
                 result.saveToFile(localPath);
                 mainWindow.clipboardHelper.copyImageFromTempFile(tempUrl);
             }
-            selectedIndex = oldSelected;
+            selectedIndex = oldSelectedIndex;
+            selectedIndexes = oldselectedIndexes;
         });
     }
 
