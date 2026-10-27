@@ -44,7 +44,7 @@ jobs:
 
       - name: Run qmllint (QML)
         run: |
-          qmllint --bare Main.qml tests/tst_main.qml
+          qmllint --bare -I "$QT_ROOT_DIR/qml" Main.qml tests/tst_main.qml
 
   unit-tests:
     name: Unit Tests (Windows)
