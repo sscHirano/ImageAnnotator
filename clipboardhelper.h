@@ -26,6 +26,7 @@ signals:
 private slots:
     void onClipboardDataChanged();
     void checkClippingWindow();
+    void updateCaptureWindowState(bool isVisible);
 
 private:
     void setupTempDirectory();
@@ -34,6 +35,6 @@ private:
     QString m_tempDirPath;
     QTemporaryDir m_tempDir;
     QTimer *m_cancelWatchTimer = nullptr;
-    bool m_clippingWindowAppeared = false;
+    bool m_snippingToolWindowWasVisible = false;
     bool m_isWatching = false;
 };

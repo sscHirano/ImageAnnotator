@@ -9,6 +9,41 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <vector>
+
+namespace {
+// Snipping Toolのウィンドウを検出するためのコールバック関数
+BOOL CALLBACK findSnippingToolWindow(HWND hwnd, LPARAM userData) {
+    if (!IsWindowVisible(hwnd)) {
+        return TRUE;
+    }
+
+    DWORD processId = 0;
+    GetWindowThreadProcessId(hwnd, &processId);
+
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
+    if (process == nullptr) {
+        return TRUE;
+    }
+
+    std::vector<wchar_t> path(32768);
+
+    DWORD pathLength = static_cast<DWORD>(path.size());
+
+    const bool isSnippingTool =
+        QueryFullProcessImageNameW(process, 0, path.data(), &pathLength) &&
+        QFileInfo(QString::fromWCharArray(path.data(), pathLength))
+                .fileName().compare(QStringLiteral("SnippingTool.exe"), Qt::CaseInsensitive) == 0;
+    
+    CloseHandle(process);
+
+    if (isSnippingTool) {
+        *reinterpret_cast<bool *>(userData) = true;
+        return FALSE;
+    }
+    return TRUE;
+}
+}
 #endif
 
 ClipboardHelper::ClipboardHelper(QObject *parent) : QObject(parent) {
@@ -71,7 +106,7 @@ void ClipboardHelper::copyImageFromTempFile(const QString &fileUrl) {
 // クリップボードを監視
 void ClipboardHelper::watchClipboard() {
     m_isWatching = true;
-    m_clippingWindowAppeared = false;
+    m_snippingToolWindowWasVisible = false;
 
     const QClipboard *clipboard = QGuiApplication::clipboard();
     connect(clipboard, &QClipboard::dataChanged, this, &ClipboardHelper::onClipboardDataChanged, Qt::UniqueConnection);
@@ -97,28 +132,31 @@ void ClipboardHelper::unwatchClipboard() {
     const QClipboard *clipboard = QGuiApplication::clipboard();
     disconnect(clipboard, &QClipboard::dataChanged, this, &ClipboardHelper::onClipboardDataChanged);
     m_cancelWatchTimer->stop();
-    m_clippingWindowAppeared = false;
+    m_snippingToolWindowWasVisible = false;
 }
 
 // キャンセル判定
 void ClipboardHelper::checkClippingWindow() {
 #ifdef Q_OS_WIN
-    HWND hwnd = FindWindowW(L"XamlWindow", L"Snipping Tool オーバーレイ");
+    bool isSnippingToolWindowVisible = false;
+    EnumWindows(findSnippingToolWindow, reinterpret_cast<LPARAM>(&isSnippingToolWindowVisible));
 
-    if (hwnd != 0x0) {
-        m_clippingWindowAppeared = true;
-    } else {
-        if (m_clippingWindowAppeared) {
-            m_cancelWatchTimer->stop();
-            m_clippingWindowAppeared = false;
-
-            QTimer::singleShot(200, this, [this]() {
-                if (m_isWatching) {
-                    unwatchClipboard();
-                    emit captureCanceled();
-                }
-            });
-        }
-    }
+    updateCaptureWindowState(isSnippingToolWindowVisible);
 #endif
+}
+
+void ClipboardHelper::updateCaptureWindowState(bool isVisible) {
+    if (isVisible) {
+       m_snippingToolWindowWasVisible = true;
+    } else if (m_snippingToolWindowWasVisible) {
+        m_cancelWatchTimer->stop();
+        m_snippingToolWindowWasVisible = false;
+
+        QTimer::singleShot(200, this, [this]() {
+            if (m_isWatching) {
+                unwatchClipboard();
+                emit captureCanceled();
+            }
+        });
+    }
 }
