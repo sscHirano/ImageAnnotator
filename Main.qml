@@ -963,7 +963,7 @@ Window {
                                         saveSelectedDragShape();
                                         return;
                                     }
-                                } else if (selItem.type === "rect" || selItem.type === "circle") {
+                                } else if (selItem.type === "rect" || selItem.type === "circle" || selItem.type === "text") {
                                     var tx = selItem.x;
                                     var ty = selItem.y;
                                     var bx = selItem.x + selItem.w;
@@ -1131,7 +1131,7 @@ Window {
                                 shapeModel.setProperty(mainWindow.selectedIndex, "flipY", sy > ey);
                                 mainWindow.isSaved = false;
                                 return;
-                            } else if (selItem.type === "rect" || selItem.type === "circle") {
+                            } else if (selItem.type === "rect" || selItem.type === "circle" || selItem.type === "text") {
                                 var activeStart = null;
                                 if (selectedDragShape.length > 1) {
                                     for (var j = 0; j < selectedDragShape.length; j++) {
@@ -1390,25 +1390,25 @@ Window {
                             width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
                             color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
                             x: - (shapeItem.model.thickness / 2) - 4 * shapeItem.hScale - 7 * shapeItem.hScale; y: - (shapeItem.model.thickness / 2) - 4 * shapeItem.hScale - 7 * shapeItem.hScale
-                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle")
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle" || shapeItem.model.type === "text")
                         }
                         Rectangle {
                             width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
                             color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
                             x: shapeItem.model.w + (shapeItem.model.thickness / 2) + 4 * shapeItem.hScale - 7 * shapeItem.hScale; y: - (shapeItem.model.thickness / 2) - 4 * shapeItem.hScale - 7 * shapeItem.hScale
-                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle")
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle" || shapeItem.model.type === "text")
                         }
                         Rectangle {
                             width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
                             color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
                             x: - (shapeItem.model.thickness / 2) - 4 * shapeItem.hScale - 7 * shapeItem.hScale; y: shapeItem.model.h + (shapeItem.model.thickness / 2) + 4 * shapeItem.hScale - 7 * shapeItem.hScale
-                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle")
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle" || shapeItem.model.type === "text")
                         }
                         Rectangle {
                             width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
                             color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
                             x: shapeItem.model.w + (shapeItem.model.thickness / 2) + 4 * shapeItem.hScale - 7 * shapeItem.hScale; y: shapeItem.model.h + (shapeItem.model.thickness / 2) + 4 * shapeItem.hScale - 7 * shapeItem.hScale
-                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle")
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle" || shapeItem.model.type === "text")
                         }
                         
                         // Arrow handles
