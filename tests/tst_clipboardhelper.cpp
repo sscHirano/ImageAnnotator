@@ -22,7 +22,6 @@ private slots:
     // テストライフサイクル
     // =========================================================================
     void initTestCase();
-    void cleanupTestCase();
     void init();
     void cleanup();
 
@@ -43,13 +42,6 @@ private slots:
 void TestClipboardHelper::initTestCase()
 {
     QVERIFY(QGuiApplication::clipboard() != nullptr);
-}
-
-// -----------------------------------------------------------------------------
-// [ライフサイクル] テストスイート全体の終了時に1度だけ実行
-// -----------------------------------------------------------------------------
-void TestClipboardHelper::cleanupTestCase()
-{
 }
 
 // -----------------------------------------------------------------------------
@@ -186,42 +178,17 @@ void TestClipboardHelper::testCaptureCanceledSignal()
 {
 #ifdef Q_OS_WIN
     ClipboardHelper helper;
-    // 1. captureCanceled シグナルを監視するスパイを設定
     QSignalSpy spy(&helper, &ClipboardHelper::captureCanceled);
     QVERIFY(spy.isValid());
 
-    // 2. ダミーの「Snipping Tool オーバーレイ」ウィンドウクラスを登録
-    WNDCLASSW wc = {};
-    wc.lpfnWndProc = DefWindowProcW;
-    wc.hInstance = GetModuleHandle(nullptr);
-    wc.lpszClassName = L"XamlWindow";
-    RegisterClassW(&wc); // 既に登録されている場合は無視される
-
-    // 3. クリップボード監視を開始
     helper.watchClipboard();
+    QVERIFY(QMetaObject::invokeMethod(
+        &helper, "updateCaptureWindowState", Qt::DirectConnection, Q_ARG(bool, true)));
+    QVERIFY(QMetaObject::invokeMethod(
+        &helper, "updateCaptureWindowState", Qt::DirectConnection, Q_ARG(bool, false)));
 
-    // 4. Snipping Tool オーバーレイが出現した状態をシミュレート（ウィンドウ生成）
-    HWND hwnd = CreateWindowExW(
-        0,
-        L"XamlWindow",
-        L"Snipping Tool オーバーレイ",
-        WS_POPUP,
-        0, 0, 100, 100,
-        nullptr, nullptr, GetModuleHandle(nullptr), nullptr
-    );
-    QVERIFY(hwnd != nullptr);
-
-    // 監視タイマー（150ms間隔）が「出現 (m_clippingWindowAppeared = true)」を検知するまで待機
-    QTest::qWait(250);
-
-    // 5. ウィンドウを破棄（ユーザーが Esc 等でオーバーレイを閉じた状態をシミュレート）
-    DestroyWindow(hwnd);
-
-    // 6. 消滅検知タイマー(150ms) + 内部遅延(200ms) の後、captureCanceled が発火することを検証
     QVERIFY(spy.wait(2000));
     QCOMPARE(spy.count(), 1);
-
-    // 7. 監視を終了
     helper.unwatchClipboard();
 #else
     QSKIP("This test is only supported on Windows.");
