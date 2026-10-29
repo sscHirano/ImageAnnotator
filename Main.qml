@@ -231,6 +231,13 @@ Window {
         buttons: MessageDialog.Close
     }
 
+    MessageDialog {
+        id: imageErrorDialog
+        title: "読み込みエラー"
+        text: "画像を読み込めませんでした。対応している画像ファイルかご確認ください"
+        buttons: MessageDialog.Close
+    }
+
     FileDialog {
         id: saveDialog
         title: "Save Image"
@@ -801,6 +808,12 @@ Window {
                     fillMode: Image.Stretch
                     smooth: true
                     mipmap: true
+                    onStatusChanged: {
+                        if (status === Image.Error) {
+                            imageErrorDialog.open();
+                            source = ""
+                        }
+                    }
                 }
 
                 MouseArea {
