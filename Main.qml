@@ -1473,24 +1473,31 @@ Window {
                                 var ex = (_fx ? 0 : _w) + _pad;
                                 var ey = (_fy ? 0 : _h) + _pad;
                                 
+                                var dx = ex - sx;
+                                var dy = ey - sy;
+                                var angle = Math.atan2(dy, dx);
+                                var arrowLength = Math.sqrt(dx * dx + dy * dy);
+                                var headlen = Math.min(Math.max(15, _t * 3), arrowLength * 0.8);
+                                var leftX = ex - headlen * Math.cos(angle - Math.PI / 6);
+                                var leftY = ey - headlen * Math.sin(angle - Math.PI / 6);
+                                var rightX = ex - headlen * Math.cos(angle + Math.PI / 6);
+                                var rightY = ey - headlen * Math.sin(angle + Math.PI / 6);
+                                var baseX = (leftX + rightX) / 2;
+                                var baseY = (leftY + rightY) / 2;
+
                                 ctx.beginPath();
                                 ctx.moveTo(sx, sy);
-                                ctx.lineTo(ex, ey);
+                                ctx.lineTo(baseX, baseY);
                                 ctx.strokeStyle = _c;
                                 ctx.lineWidth = _t;
                                 ctx.lineCap = "round";
                                 ctx.lineJoin = "round";
                                 ctx.stroke();
                                 
-                                var dx = ex - sx;
-                                var dy = ey - sy;
-                                var angle = Math.atan2(dy, dx);
-                                var headlen = Math.max(15, _t * 3);
-                                
                                 ctx.beginPath();
                                 ctx.moveTo(ex, ey);
-                                ctx.lineTo(ex - headlen * Math.cos(angle - Math.PI / 6), ey - headlen * Math.sin(angle - Math.PI / 6));
-                                ctx.lineTo(ex - headlen * Math.cos(angle + Math.PI / 6), ey - headlen * Math.sin(angle + Math.PI / 6));
+                                ctx.lineTo(leftX, leftY);
+                                ctx.lineTo(rightX, rightY);
                                 ctx.closePath();
                                 ctx.fillStyle = _c;
                                 ctx.fill();
