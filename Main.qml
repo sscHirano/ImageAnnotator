@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
@@ -7,18 +8,22 @@ import QtQuick.Dialogs
 
 Window {
     id: mainWindow
-    width: 900
+    width: 1050
     height: 600
     visible: true
     title: qsTr("Image Annotator") + (isSaved ? "" : " *")
     color: "#2b2b2b"
 
-    property string currentTool: "none"
+    property string currentTool: "rect"
     property string currentColor: "#ff0000"
     property int currentThickness: 5
     property bool isPastedImage: false
     property int selectedIndex: -1
+    property var selectedIndexes: []
     property bool isSaved: true
+    property alias shapeModel: shapeModel
+    property alias drawArea: drawArea 
+    property var clipboardHelper: null
 
     property var history: []
     property int historyIndex: -1
@@ -38,6 +43,7 @@ Window {
                 w: item.w,
                 h: item.h,
                 textStr: item.textStr,
+                filled: item.filled === true,
                 flipX: item.flipX !== undefined ? item.flipX : false,
                 flipY: item.flipY !== undefined ? item.flipY : false
             });
@@ -61,16 +67,43 @@ Window {
         isApplyingHistory = false;
     }
 
+    function repeatShape() {
+        if (selectedIndex < 0 || selectedIndex >= shapeModel.count) {
+            return;
+        }
+        var item = shapeModel.get(selectedIndex);
+        var copyShape = {
+            type: item.type,
+            color: item.color,
+            thickness: item.thickness,
+            x: item.x + 10,
+            y: item.y + 10,
+            w: item.w,
+            h: item.h,
+            textStr: item.textStr,
+            filled: item.filled === true,
+            flipX: item.flipX !== undefined ? item.flipX : false,
+            flipY: item.flipY !== undefined ? item.flipY : false
+        };
+        shapeModel.append(copyShape);
+        selectedIndex = shapeModel.count -1;
+        isSaved = false;
+        mainWindow.saveState();
+    }
+
+
     function undoShape() {
         if (historyIndex > 0) {
             historyIndex--;
             applyState(history[historyIndex]);
             selectedIndex = -1;
+            selectedIndexes = [];
             isSaved = false;
         } else if (historyIndex === 0) {
             historyIndex = -1;
             applyState([]);
             selectedIndex = -1;
+            selectedIndexes = [];
             isSaved = false;
         }
     }
@@ -85,16 +118,32 @@ Window {
     }
 
     function deleteSelectedShape() {
-        if (selectedIndex >= 0 && selectedIndex < shapeModel.count) {
+        if (selectedIndexes.length > 1) {
+            var indexesToDelete = selectedIndexes.slice().sort(function(a, b) {
+                return b - a;
+            });
+            for (var i = 0; i < indexesToDelete.length; i++) {
+                shapeModel.remove(indexesToDelete[i]);
+            }
+        } else if (selectedIndex >= 0 && selectedIndex < shapeModel.count) {
             shapeModel.remove(selectedIndex);
-            selectedIndex = -1;
-            isSaved = false;
-            saveState();
         }
+            selectedIndex = -1;
+        selectedIndexes = [];
+            isSaved = false;
+            mainWindow.saveState();
     }
+    
 
     function nudgeShape(dx, dy) {
-        if (selectedIndex >= 0 && selectedIndex < shapeModel.count) {
+        if (selectedIndexes.length > 1) {
+            for (var i = 0; i < selectedIndexes.length; i++) {
+                var item = shapeModel.get(selectedIndexes[i]);
+                shapeModel.setProperty(selectedIndexes[i], "x", item.x + dx);
+                shapeModel.setProperty(selectedIndexes[i], "y", item.y + dy);
+            }
+            isSaved = false;
+        } else if (selectedIndex >= 0 && selectedIndex < shapeModel.count) {
             var item = shapeModel.get(selectedIndex);
             shapeModel.setProperty(selectedIndex, "x", item.x + dx);
             shapeModel.setProperty(selectedIndex, "y", item.y + dy);
@@ -116,15 +165,23 @@ Window {
     MessageDialog {
         id: discardDialog
         title: "確認"
-        text: "保存されていない変更が破棄されますが、別の画像へ移動しますか？"
+        text: "保存されていない変更が破棄されます。続行しますか？"
         buttons: MessageDialog.Yes | MessageDialog.No
         property int pendingDirection: 0
+        property string pendingImageUrl: ""
+        property bool pendingImageIsPasted: false
         onAccepted: {
             shapeModel.clear();
-            history = [];
-            historyIndex = -1;
-            isSaved = true;
-            performSwitch(pendingDirection);
+            mainWindow.history = [];
+            mainWindow.historyIndex = -1;
+            mainWindow.isSaved = true;
+            if (pendingImageUrl !== "") {
+                mainWindow.loadImage(pendingImageUrl, pendingImageIsPasted);
+                pendingImageUrl = "";
+                pendingImageIsPasted = false;
+            } else {
+                mainWindow.performSwitch(pendingDirection);
+            }
         }
     }
 
@@ -134,8 +191,11 @@ Window {
         text: "保存されていない変更があります。保存せずに終了しますか？"
         buttons: MessageDialog.Yes | MessageDialog.No
         onAccepted: {
-            isSaved = true;
+            mainWindow.isSaved = true;
             Qt.quit();
+        }
+        onRejected: {
+            mainWindow.flags = mainWindow.flags & ~Qt.WindowStaysOnTopHint;
         }
     }
 
@@ -146,10 +206,35 @@ Window {
         buttons: MessageDialog.Yes | MessageDialog.No
         onAccepted: {
             shapeModel.clear();
-            selectedIndex = -1;
-            isSaved = false;
-            saveState();
+            mainWindow.selectedIndex = -1;
+            mainWindow.isSaved = false;
+            mainWindow.saveState();
         }
+    }
+
+    MessageDialog {
+        id: helpDialog
+        title: "ヘルプ"
+        text: `ショートカットキー
+        V: 選択ツール
+        C: 円ツール
+        S: 四角形ツール
+        T: テキストツール
+        A: 矢印ツール
+        F: 選択中の円・四角形の塗りつぶしを切り替え
+        R: 選択図形のリピート
+        Ctrl+Z / Ctrl+Y: Undo / Redo
+        Delete: 選択図形を削除
+        Ctrl+S: 名前を付けて保存
+        Ctrl+C / Ctrl+V: 注釈画像のコピー / 画像の貼り付け`
+        buttons: MessageDialog.Close
+    }
+
+    MessageDialog {
+        id: imageErrorDialog
+        title: "読み込みエラー"
+        text: "画像を読み込めませんでした。対応している画像ファイルかご確認ください"
+        buttons: MessageDialog.Close
     }
 
     FileDialog {
@@ -163,31 +248,114 @@ Window {
             if (path.startsWith("file:///")) path = path.substring(8);
             else if (path.startsWith("file://")) path = path.substring(7);
 
-            var oldSelected = selectedIndex;
-            selectedIndex = -1;
+            var oldSelected = mainWindow.selectedIndex;
+            var oldSelectedIndexes = mainWindow.selectedIndexes.slice();
+            mainWindow.selectedIndex = -1;
+            mainWindow.selectedIndexes = [];
             captureArea.grabToImage(function(result) {
-                result.saveToFile(path);
-                selectedIndex = oldSelected;
-                isSaved = true;
+                if (result.saveToFile(path)) {
+                    mainWindow.isSaved = true;
+                }
+                mainWindow.selectedIndex = oldSelected;
+                mainWindow.selectedIndexes = oldSelectedIndexes;
             });
         }
+    }
+
+    function openSaveDialog() {
+        var now = new Date();
+        var timestamp = now.getFullYear()
+                + padDatePart(now.getMonth() + 1)
+                + padDatePart(now.getDate()) + "_"
+                + padDatePart(now.getHours())
+                + padDatePart(now.getMinutes())
+                + padDatePart(now.getSeconds());
+
+        saveDialog.currentFile = timestamp;
+        saveDialog.open();
+    }
+
+    function padDatePart(value) {
+        return value < 10 ? "0" + value : String(value);
     }
 
     onClosing: (close_event) => {
         if (!isSaved && shapeModel.count > 0) {
             close_event.accepted = false;
-            exitDialog.open();
+
+            if (mainWindow.visibility === Window.Minimized) {
+                mainWindow.showNormal();
+                mainWindow.raise();
+                mainWindow.requestActivate();
+                mainWindow.flags = mainWindow.flags | Qt.WindowStaysOnTopHint;
+            }
+
+            Qt.callLater(() => {
+                exitDialog.open();
+            });
         }
     }
 
-    Shortcut { sequence: "Ctrl+S"; onActivated: saveDialog.open(); context: Qt.ApplicationShortcut }
+    Shortcut { sequence: "Ctrl+S"; onActivated: mainWindow.openSaveDialog(); context: Qt.ApplicationShortcut }
+
+    Shortcut {
+        sequence: "V"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: mainWindow.currentTool = "none"
+    }
+    Shortcut {
+        sequence: "C"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: { mainWindow.currentTool = "circle"; mainWindow.selectedIndex = -1; }
+    }
+    Shortcut {
+        sequence: "S"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: { mainWindow.currentTool = "rect"; mainWindow.selectedIndex = -1; }
+    }
+    Shortcut {
+        sequence: "T"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: { mainWindow.currentTool = "text"; mainWindow.selectedIndex = -1; }
+    }
+    Shortcut {
+        sequence: "A"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: { mainWindow.currentTool = "arrow"; mainWindow.selectedIndex = -1; }
+    }
+    Shortcut {
+        sequence: "F"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus && mainWindow.selectedIndex >= 0 && mainWindow.selectedIndex < shapeModel.count &&
+                 (shapeModel.get(mainWindow.selectedIndex).type === "rect" || shapeModel.get(mainWindow.selectedIndex).type === "circle")
+        onActivated: {
+            var selectedShape = shapeModel.get(mainWindow.selectedIndex);
+            shapeModel.setProperty(mainWindow.selectedIndex, "filled", selectedShape.filled !== true);
+            mainWindow.isSaved = false;
+            mainWindow.saveState();
+        }
+    }
+
+    Shortcut {
+        sequence: "R"
+        context: Qt.ApplicationShortcut
+        enabled: !textInput.activeFocus
+        onActivated: {
+            mainWindow.repeatShape();
+        }
+    }
 
     Shortcut {
         sequences: [StandardKey.Paste]
         context: Qt.ApplicationShortcut
         onActivated: {
             if (textInput.activeFocus) textInput.paste();
-            else pasteImage();
+            else mainWindow.pasteImage();
         }
     }
     Shortcut {
@@ -195,7 +363,7 @@ Window {
         context: Qt.ApplicationShortcut
         onActivated: {
             if (textInput.activeFocus) textInput.copy();
-            else copyAnnotatedImage();
+            else mainWindow.copyAnnotatedImage();
         }
     }
     Shortcut {
@@ -203,7 +371,7 @@ Window {
         context: Qt.ApplicationShortcut
         onActivated: {
             if (textInput.activeFocus) textInput.undo();
-            else undoShape();
+            else mainWindow.undoShape();
         }
     }
     Shortcut {
@@ -211,22 +379,34 @@ Window {
         context: Qt.ApplicationShortcut
         onActivated: {
             if (textInput.activeFocus) textInput.redo();
-            else redoShape();
+            else mainWindow.redoShape();
         }
     }
     Shortcut {
         sequences: [StandardKey.Delete]
         context: Qt.ApplicationShortcut
         onActivated: {
-            if (!textInput.activeFocus) deleteSelectedShape();
+            if (!textInput.activeFocus) mainWindow.deleteSelectedShape();
+        }
+    }
+
+    Shortcut {
+        sequence: "Esc"
+        context: Qt.ApplicationShortcut
+        enabled: textInput.activeFocus
+        onActivated: {
+            mainWindow.currentTool = "none"
+            contentArea.forceActiveFocus();
         }
     }
 
     function switchImage(direction) {
         if (isPastedImage) return;
-        if (folderModel.count <= 1 || mainImage.source == "") return;
+        if (folderModel.count <= 1 || String(mainImage.source) === "") return;
         
-        if (shapeModel.count > 0 && !isSaved) {
+        if (!isSaved) {
+            discardDialog.pendingImageUrl = "";
+            discardDialog.pendingImageIsPasted = false;
             discardDialog.pendingDirection = direction;
             discardDialog.open();
         } else {
@@ -264,30 +444,107 @@ Window {
     }
 
     function pasteImage() {
-        if (ClipboardHelper.hasImage()) {
-            var url = ClipboardHelper.pasteImageToTempFile();
+        if (mainWindow.clipboardHelper.hasImage()) {
+            var url = mainWindow.clipboardHelper.pasteImageToTempFile();
             if (url !== "") {
-                loadImage(url, true);
+                if (!isSaved) {
+                    discardDialog.pendingImageUrl = url;
+                    discardDialog.pendingImageIsPasted = true;
+                    discardDialog.open();
+                } else {
+                    loadImage(url, true);
+                }  
             }
         }
     }
 
     function copyAnnotatedImage() {
-        if (mainImage.source == "") return;
+        if (String(mainImage.source) === "") return;
         
-        var oldSelected = selectedIndex;
+        var oldSelectedIndex = selectedIndex;
+        var oldselectedIndexes = selectedIndexes;
         selectedIndex = -1;
+        selectedIndexes = [];
         
         captureArea.grabToImage(function(result) {
-            var tempUrl = ClipboardHelper.generateTempFilePath();
+            var tempUrl = mainWindow.clipboardHelper.generateTempFilePath();
             if (tempUrl !== "") {
                 var localPath = tempUrl.replace("file:///", "");
                 result.saveToFile(localPath);
-                ClipboardHelper.copyImageFromTempFile(tempUrl);
+                mainWindow.clipboardHelper.copyImageFromTempFile(tempUrl);
             }
-            selectedIndex = oldSelected;
+            selectedIndex = oldSelectedIndex;
+            selectedIndexes = oldselectedIndexes;
         });
     }
+
+    // クリップボード更新およびキャンセルを検知してウィンドウを再表示する
+    Connections {
+        target: mainWindow.clipboardHelper
+        function onClipboardChanged() {
+            mainWindow.showNormal();
+            mainWindow.raise();
+            mainWindow.requestActivate();
+        }
+        function onCaptureCanceled() {
+            mainWindow.showNormal();
+            mainWindow.raise();
+            mainWindow.requestActivate();
+        }
+    }
+
+    function createNewScreenshot() {
+        // ウィンドウを最小化
+        mainWindow.showMinimized();
+        // スクリーンショット機能の起動
+        Qt.openUrlExternally("ms-screenclip:");
+        // クリップボードの監視開始
+        mainWindow.clipboardHelper.watchClipboard();
+    }
+
+    function applyColor(color) {
+        currentColor = color;
+        if (selectedIndexes.length > 1) {
+            for (var i = 0; i < selectedIndexes.length; i++) {    
+                shapeModel.setProperty(selectedIndexes[i], "color", color);
+            }
+        } else if (selectedIndex >= 0) {
+            shapeModel.setProperty(selectedIndex, "color", color);
+        }
+        isSaved = false;
+        saveState();
+        if (textInput.visible) {
+            textInput.forceActiveFocus();
+        }
+    }
+
+    function applyFillColor() {
+        if (selectedIndexes.length > 1 && (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
+            for (var i = 0; i < selectedIndexes.length; i++) {    
+                var selectedShapes = shapeModel.get(selectedIndexes[i]);
+                shapeModel.setProperty(selectedIndexes[i], "filled", selectedShapes.filled !== true);
+            }
+        } else if (selectedIndex >= 0 && selectedIndex < shapeModel.count &&
+                (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
+            var selectedShape = shapeModel.get(selectedIndex);
+            shapeModel.setProperty(selectedIndex, "filled", selectedShape.filled !== true);
+        }
+        isSaved = false;
+        saveState();
+    }
+
+    function applyThickness(thickness) {
+        currentThickness = thickness;
+        if (selectedIndexes.length > 1) {
+            for(var i = 0; i < selectedIndexes.length; i++) {                            
+                shapeModel.setProperty(selectedIndexes[i], "thickness", thickness);
+            }
+        } else if (selectedIndex >= 0) {
+            shapeModel.setProperty(selectedIndex, "thickness", thickness);
+        }
+        isSaved = false;
+        saveState();
+    }   
 
     Rectangle {
         id: toolbar
@@ -304,26 +561,36 @@ Window {
             RowLayout {
                 spacing: 2
                 ToolButton { 
+                    text: "＋"
+                    onClicked: mainWindow.createNewScreenshot();
+                    ToolTip.visible: hovered; ToolTip.text: "新しいスクリーンショット"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
+                ToolButton { 
                     icon.source: "icons/paste.svg"
-                    onClicked: pasteImage()
-                    ToolTip.visible: hovered; ToolTip.text: "Paste (Ctrl+V)"
+                    onClicked: mainWindow.pasteImage()
+                    ToolTip.visible: hovered; ToolTip.text: "画像を貼り付け (Ctrl+V)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
                 ToolButton { 
                     icon.source: "icons/copy.svg"
-                    onClicked: copyAnnotatedImage()
-                    ToolTip.visible: hovered; ToolTip.text: "Copy (Ctrl+C)"
+                    onClicked: mainWindow.copyAnnotatedImage()
+                    ToolTip.visible: hovered; ToolTip.text: "画像をコピー (Ctrl+C)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
                 ToolButton { 
                     icon.source: "icons/save.svg"
                     onClicked: saveDialog.open()
-                    ToolTip.visible: hovered; ToolTip.text: "Save As (Ctrl+S)"
+                    ToolTip.visible: hovered; ToolTip.text: "画像を保存 (Ctrl+S)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
             }
 
-            Rectangle { width: 2; height: parent.height - 10; color: "#999" }
+            Rectangle {
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: 40
+                color: "#999"
+            }
 
             ButtonGroup { id: toolGroup }
             
@@ -331,10 +598,10 @@ Window {
                 id: control
                 property string toolName: ""
                 property string text: ""
-                property bool checked: currentTool === toolName
+                property bool checked: mainWindow.currentTool === toolName
                 
-                width: 40
-                height: parent.height - 10
+                implicitWidth: 40
+                implicitHeight: 40
                 Layout.alignment: Qt.AlignVCenter
 
                 Rectangle {
@@ -353,8 +620,8 @@ Window {
                     anchors.fill: parent
                     hoverEnabled: true
                     onClicked: {
-                        currentTool = control.toolName;
-                        if (control.toolName !== "none") selectedIndex = -1;
+                        mainWindow.currentTool = control.toolName;
+                        if (control.toolName !== "none") mainWindow.selectedIndex = -1;
                     }
                 }
             }
@@ -365,7 +632,21 @@ Window {
             ToolButtonIcon { text: "↗"; toolName: "arrow" }
             ToolButtonIcon { text: "A"; toolName: "text" }
 
-            Rectangle { width: 2; height: parent.height - 10; color: "#999" }
+            ToolButton {
+                text: "🪣"
+                font.pixelSize: 20
+                onClicked: {
+                    mainWindow.applyFillColor();
+                }
+                Layout.preferredHeight: 40
+                Layout.preferredWidth: 40
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: 40
+                color: "#999"
+            }
 
             GridLayout {
                 columns: 6
@@ -375,69 +656,70 @@ Window {
                     model: ["#ff0000", "#ff8800", "#ffff00", "#00ff00", "#0000ff", "#ff00ff",
                             "#000000", "#555555", "#aaaaaa", "#ffffff", "#800000", "#008080"]
                     Rectangle {
+                        id: colorSwatch
+                        required property var modelData
                         width: 20
                         height: 20
-                        color: modelData
-                        border.color: currentColor === modelData ? (modelData === "#ffffff" ? "#000" : "#fff") : "#222"
-                        border.width: currentColor === modelData ? 2 : 1
+                        color: colorSwatch.modelData
+                        border.color: mainWindow.currentColor === colorSwatch.modelData ? (colorSwatch.modelData === "#ffffff" ? "#000" : "#fff") : "#222"
+                        border.width: mainWindow.currentColor === colorSwatch.modelData ? 2 : 1
                         radius: 10
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                currentColor = modelData;
-                                if (selectedIndex >= 0) {
-                                    shapeModel.setProperty(selectedIndex, "color", modelData);
-                                    isSaved = false;
-                                    saveState();
-                                }
-                                if (textInput.visible) {
-                                    textInput.forceActiveFocus();
-                                }
+                                mainWindow.applyColor(colorSwatch.modelData);
                             }
                         }
                     }
                 }
             }
 
-            Rectangle { width: 2; height: parent.height - 10; color: "#999" }
+            Rectangle {
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: 40
+                color: "#999"
+            }
 
             Text { text: "Size:"; color: "black"; Layout.alignment: Qt.AlignVCenter }
             SpinBox {
                 from: 1
                 to: 100
-                value: currentThickness
+                value: mainWindow.currentThickness
                 onValueModified: {
-                    currentThickness = value;
-                    if (selectedIndex >= 0) {
-                        shapeModel.setProperty(selectedIndex, "thickness", value);
-                        isSaved = false;
-                        saveState();
-                    }
+                    mainWindow.applyThickness(value);
                 }
                 Layout.preferredWidth: 100
             }
 
-            Rectangle { width: 2; height: parent.height - 10; color: "#999" }
+            Rectangle {
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: 40
+                color: "#999"
+            }
 
             RowLayout {
                 spacing: 2
                 ToolButton { 
                     icon.source: "icons/undo.svg"
-                    onClicked: undoShape()
+                    onClicked: mainWindow.undoShape()
                     ToolTip.visible: hovered; ToolTip.text: "Undo (Ctrl+Z)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
                 ToolButton { 
                     icon.source: "icons/redo.svg"
-                    onClicked: redoShape()
+                    onClicked: mainWindow.redoShape()
                     ToolTip.visible: hovered; ToolTip.text: "Redo (Ctrl+Y)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
-                Rectangle { width: 1; height: 30; color: "#999" }
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 30
+                    color: "#999"
+                }
                 ToolButton { 
                     icon.source: "icons/delete.svg"
-                    onClicked: deleteSelectedShape()
-                    enabled: selectedIndex >= 0
+                    onClicked: mainWindow.deleteSelectedShape()
+                    enabled: mainWindow.selectedIndex >= 0
                     ToolTip.visible: hovered; ToolTip.text: "Delete Selected (Del)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
@@ -445,6 +727,14 @@ Window {
                     icon.source: "icons/clear.svg"
                     onClicked: clearConfirmDialog.open()
                     ToolTip.visible: hovered; ToolTip.text: "Clear All Shapes"
+                    Layout.preferredHeight: 40; Layout.preferredWidth: 40
+                }
+
+                ToolButton { 
+                    text: "?"
+                    font.pixelSize: 20
+                    onClicked: helpDialog.open()
+                    ToolTip.visible: hovered; ToolTip.text: "help"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
             }
@@ -466,27 +756,27 @@ Window {
         Keys.onPressed: (event) => {
             var step = (event.modifiers & Qt.ShiftModifier) ? 10 : 1;
             if (event.key === Qt.Key_Left) {
-                if (selectedIndex >= 0 && currentTool === "none") { nudgeShape(-step, 0); nudged = true; }
-                else switchImage(-1);
+                if (mainWindow.selectedIndex >= 0 && mainWindow.currentTool === "none") { mainWindow.nudgeShape(-step, 0); nudged = true; }
+                else mainWindow.switchImage(-1);
                 event.accepted = true;
             } else if (event.key === Qt.Key_Right) {
-                if (selectedIndex >= 0 && currentTool === "none") { nudgeShape(step, 0); nudged = true; }
-                else switchImage(1);
+                if (mainWindow.selectedIndex >= 0 && mainWindow.currentTool === "none") { mainWindow.nudgeShape(step, 0); nudged = true; }
+                else mainWindow.switchImage(1);
                 event.accepted = true;
             } else if (event.key === Qt.Key_Up) {
-                if (selectedIndex >= 0 && currentTool === "none") { nudgeShape(0, -step); nudged = true; }
-                else if (selectedIndex < 0) currentThickness = Math.min(100, currentThickness + 1);
+                if (mainWindow.selectedIndex >= 0 && mainWindow.currentTool === "none") { mainWindow.nudgeShape(0, -step); nudged = true; }
+                else if (mainWindow.selectedIndex < 0) mainWindow.currentThickness = Math.min(100, mainWindow.currentThickness + 1);
                 event.accepted = true;
             } else if (event.key === Qt.Key_Down) {
-                if (selectedIndex >= 0 && currentTool === "none") { nudgeShape(0, step); nudged = true; }
-                else if (selectedIndex < 0) currentThickness = Math.max(1, currentThickness - 1);
+                if (mainWindow.selectedIndex >= 0 && mainWindow.currentTool === "none") { mainWindow.nudgeShape(0, step); nudged = true; }
+                else if (mainWindow.selectedIndex < 0) mainWindow.currentThickness = Math.max(1, mainWindow.currentThickness - 1);
                 event.accepted = true;
             }
         }
 
         Keys.onReleased: (event) => {
             if (nudged && (event.key === Qt.Key_Left || event.key === Qt.Key_Right || event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
-                saveState();
+                mainWindow.saveState();
                 nudged = false;
             }
         }
@@ -497,14 +787,14 @@ Window {
             color: "#888888"
             font.pixelSize: 20
             horizontalAlignment: Text.AlignHCenter
-            visible: mainImage.source == ""
+            visible: String(mainImage.source) === ""
         }
 
         Item {
             id: imageContainer
             anchors.fill: parent
             anchors.margins: 20
-            visible: mainImage.source != ""
+            visible: String(mainImage.source) !== ""
 
             Item {
                 id: captureArea
@@ -527,6 +817,12 @@ Window {
                     fillMode: Image.Stretch
                     smooth: true
                     mipmap: true
+                    onStatusChanged: {
+                        if (status === Image.Error) {
+                            imageErrorDialog.open();
+                            source = ""
+                        }
+                    }
                 }
 
                 MouseArea {
@@ -543,6 +839,8 @@ Window {
                     property int dragStartY: 0
                     property int shapeStartX: 0
                     property int shapeStartY: 0
+                    property var selectedDragShape: []
+
                     
                     property string isDraggingHandle: ""
 
@@ -578,6 +876,13 @@ Window {
                         return Math.abs(dist) <= margin;
                     }
 
+                    function hitTestFilledEllipse(mx, my, x, y, w, h) {
+                        if (w <= 0 || h <= 0) return false;
+                        var dx = (mx - (x + w / 2)) / (w / 2);
+                        var dy = (my - (y + h / 2)) / (h / 2);
+                        return dx * dx + dy * dy <= 1;
+                    }
+
                     function hitTestFill(mx, my, x, y, w, h) {
                         var margin = 5 / captureArea.scale;
                         return (mx >= x - margin && mx <= x + w + margin && my >= y - margin && my <= y + h + margin);
@@ -602,39 +907,100 @@ Window {
                         return dist <= margin;
                     }
 
+                    function editTextShape(index) {
+                        var item = shapeModel.get(index);
+                        mainWindow.selectedIndex = index;
+                        mainWindow.currentColor = item.color;
+                        mainWindow.currentThickness = item.thickness;
+                        textInput.editingIndex = index;
+                        textInput.x = item.x;
+                        textInput.y = item.y;
+                        textInput.width = Math.max(item.w, 1);
+                        textInput.height = Math.max(item.h, 1);
+                        textInput.text = item.textStr;
+                        textInput.visible = true;
+                        textInput.forceActiveFocus();
+                        textInput.cursorPosition = textInput.text.length;
+                    }
+
+                    function saveSelectedDragShape() {
+                        var state = [];
+                        for (var j = 0; j < mainWindow.selectedIndexes.length; j++) {
+                            var modelIndex = mainWindow.selectedIndexes[j];
+                            var selectedItem = shapeModel.get(modelIndex);
+                            state.push({
+                                selectedIndex: modelIndex,
+                                x: selectedItem.x,
+                                y: selectedItem.y,
+                                w: selectedItem.w,
+                                h: selectedItem.h,
+                                flipX: selectedItem.flipX,
+                                flipY: selectedItem.flipY
+                            });
+                        }
+                        selectedDragShape = state;
+                    }
+
                     onPressed: (mouse) => {
                         contentArea.forceActiveFocus();
                         
-                        if (textInput.visible && currentTool === "text") {
+                        if (textInput.visible && mainWindow.currentTool === "text") {
                             textInput.focus = false;
                             return;
                         }
 
-                        if (currentTool === "none") {
-                            if (selectedIndex >= 0) {
-                                var selItem = shapeModel.get(selectedIndex);
+                        if (mainWindow.currentTool === "none") {
+                            for (var handleIndex = shapeModel.count - 1; handleIndex >= 0; handleIndex--) {
+                                if (mainWindow.selectedIndexes.indexOf(handleIndex) === -1) {
+                                    continue;
+                                }
+                                var selItem = shapeModel.get(handleIndex);
                                 if (selItem.type === "arrow") {
                                     var sx = selItem.x + (selItem.flipX ? selItem.w : 0);
                                     var sy = selItem.y + (selItem.flipY ? selItem.h : 0);
                                     var ex = selItem.x + (selItem.flipX ? 0 : selItem.w);
                                     var ey = selItem.y + (selItem.flipY ? 0 : selItem.h);
                                     if (hitTestHandle(mouse.x, mouse.y, sx, sy)) {
+                                        mainWindow.selectedIndex = handleIndex;
                                         isDraggingHandle = "start";
+                                        saveSelectedDragShape();
                                         return;
                                     }
                                     if (hitTestHandle(mouse.x, mouse.y, ex, ey)) {
+                                        mainWindow.selectedIndex = handleIndex;
                                         isDraggingHandle = "end";
+                                        saveSelectedDragShape();
                                         return;
                                     }
-                                } else if (selItem.type === "rect" || selItem.type === "circle") {
+                                } else if (selItem.type === "rect" || selItem.type === "circle" || selItem.type === "text") {
                                     var tx = selItem.x;
                                     var ty = selItem.y;
                                     var bx = selItem.x + selItem.w;
                                     var by = selItem.y + selItem.h;
-                                    if (hitTestHandle(mouse.x, mouse.y, tx, ty)) { isDraggingHandle = "tl"; return; }
-                                    if (hitTestHandle(mouse.x, mouse.y, bx, ty)) { isDraggingHandle = "tr"; return; }
-                                    if (hitTestHandle(mouse.x, mouse.y, tx, by)) { isDraggingHandle = "bl"; return; }
-                                    if (hitTestHandle(mouse.x, mouse.y, bx, by)) { isDraggingHandle = "br"; return; }
+                                    if (hitTestHandle(mouse.x, mouse.y, tx, ty)) {
+                                        mainWindow.selectedIndex = handleIndex;
+                                        isDraggingHandle = "tl";
+                                        saveSelectedDragShape();
+                                        return;
+                                    }
+                                    if (hitTestHandle(mouse.x, mouse.y, bx, ty)) {
+                                        mainWindow.selectedIndex = handleIndex;
+                                        isDraggingHandle = "tr";
+                                        saveSelectedDragShape();
+                                        return;
+                                    }
+                                    if (hitTestHandle(mouse.x, mouse.y, tx, by)) {
+                                        mainWindow.selectedIndex = handleIndex;
+                                        isDraggingHandle = "bl";
+                                        saveSelectedDragShape();
+                                        return;
+                                    }
+                                    if (hitTestHandle(mouse.x, mouse.y, bx, by)) {
+                                        mainWindow.selectedIndex = handleIndex;
+                                        isDraggingHandle = "br";
+                                        saveSelectedDragShape();
+                                        return;
+                                    }
                                 }
                             }
                             
@@ -644,7 +1010,11 @@ Window {
                                 if (item.type === "text") {
                                     hit = hitTestFill(mouse.x, mouse.y, item.x, item.y, item.w, item.h);
                                 } else if (item.type === "circle") {
-                                    hit = hitTestCircle(mouse.x, mouse.y, item.x, item.y, item.w, item.h, item.thickness);
+                                    hit = item.filled === true
+                                        ? hitTestFilledEllipse(mouse.x, mouse.y, item.x, item.y, item.w, item.h)
+                                        : hitTestCircle(mouse.x, mouse.y, item.x, item.y, item.w, item.h, item.thickness);
+                                } else if (item.type === "rect" && item.filled === true) {
+                                    hit = hitTestFill(mouse.x, mouse.y, item.x, item.y, item.w, item.h);
                                 } else if (item.type === "arrow") {
                                     hit = hitTestArrow(mouse.x, mouse.y, item.x, item.y, item.w, item.h, item.thickness, item.flipX, item.flipY);
                                 } else {
@@ -652,22 +1022,39 @@ Window {
                                 }
                                 
                                 if (hit) {
-                                    selectedIndex = i;
-                                    currentThickness = item.thickness;
-                                    currentColor = item.color;
+                                    mainWindow.selectedIndex = i;
+                                    if (mouse.modifiers & Qt.ShiftModifier) {
+                                        if (mainWindow.selectedIndexes.indexOf(i) === -1) {
+                                            mainWindow.selectedIndexes = mainWindow.selectedIndexes.concat([i]);
+                                            
+                                        }
+                                    } else {
+                                        if (mainWindow.selectedIndexes.indexOf(mainWindow.selectedIndex) == -1) {
+                                            mainWindow.selectedIndexes = [i];
+                                            selectedDragShape = [];
+                                        }
+                                    }
+                                    // 線の太さ
+                                    mainWindow.currentThickness = item.thickness;
+                                    mainWindow.currentColor = item.color;
                                     dragStartX = mouse.x;
                                     dragStartY = mouse.y;
                                     shapeStartX = item.x;
                                     shapeStartY = item.y;
+
+                                    saveSelectedDragShape();
+                                    // 図形を選択状態
                                     isDraggingShape = true;
                                     return;
                                 }
                             }
-                            selectedIndex = -1;
+                            mainWindow.selectedIndex = -1;
+                            mainWindow.selectedIndexes = [];
+                            selectedDragShape = [];
                             return;
                         }
 
-                        if (currentTool === "text") {
+                        if (mainWindow.currentTool === "text") {
                             textInput.x = mouse.x
                             textInput.y = mouse.y
                             textInput.text = ""
@@ -681,22 +1068,36 @@ Window {
                         isDrawing = true
                         
                         shapeModel.append({
-                            type: currentTool,
-                            color: currentColor,
-                            thickness: currentThickness,
+                            type: mainWindow.currentTool,
+                            color: mainWindow.currentColor,
+                            thickness: mainWindow.currentThickness,
                             x: startX,
                             y: startY,
                             w: 0,
                             h: 0,
                             textStr: "",
+                            filled: false,
                             flipX: false,
                             flipY: false
                         })
                     }
 
+                    onDoubleClicked: (mouse) => {
+                        if (mainWindow.currentTool !== "none") return;
+
+                        for (var i = shapeModel.count - 1; i >= 0; i--) {
+                            var item = shapeModel.get(i);
+                            if (item.type === "text" && hitTestFill(mouse.x, mouse.y, item.x, item.y, item.w, item.h)) {
+                                editTextShape(i);
+                                mouse.accepted = true;
+                                return;
+                            }
+                        }
+                    }
+
                     onPositionChanged: (mouse) => {
-                        if (currentTool === "none" && isDraggingHandle !== "" && selectedIndex >= 0) {
-                            var selItem = shapeModel.get(selectedIndex);
+                        if (mainWindow.currentTool === "none" && isDraggingHandle !== "" && mainWindow.selectedIndex >= 0) {
+                            var selItem = shapeModel.get(mainWindow.selectedIndex);
                             if (selItem.type === "arrow") {
                                 var sx = selItem.x + (selItem.flipX ? selItem.w : 0);
                                 var sy = selItem.y + (selItem.flipY ? selItem.h : 0);
@@ -731,19 +1132,29 @@ Window {
                                 var nnw = Math.abs(ex - sx);
                                 var nnh = Math.abs(ey - sy);
                                 
-                                shapeModel.setProperty(selectedIndex, "x", nnx);
-                                shapeModel.setProperty(selectedIndex, "y", nny);
-                                shapeModel.setProperty(selectedIndex, "w", nnw);
-                                shapeModel.setProperty(selectedIndex, "h", nnh);
-                                shapeModel.setProperty(selectedIndex, "flipX", sx > ex);
-                                shapeModel.setProperty(selectedIndex, "flipY", sy > ey);
-                                isSaved = false;
+                                shapeModel.setProperty(mainWindow.selectedIndex, "x", nnx);
+                                shapeModel.setProperty(mainWindow.selectedIndex, "y", nny);
+                                shapeModel.setProperty(mainWindow.selectedIndex, "w", nnw);
+                                shapeModel.setProperty(mainWindow.selectedIndex, "h", nnh);
+                                shapeModel.setProperty(mainWindow.selectedIndex, "flipX", sx > ex);
+                                shapeModel.setProperty(mainWindow.selectedIndex, "flipY", sy > ey);
+                                mainWindow.isSaved = false;
                                 return;
-                            } else if (selItem.type === "rect" || selItem.type === "circle") {
-                                var tx = selItem.x;
-                                var ty = selItem.y;
-                                var bx = selItem.x + selItem.w;
-                                var by = selItem.y + selItem.h;
+                            } else if (selItem.type === "rect" || selItem.type === "circle" || selItem.type === "text") {
+                                var activeStart = null;
+                                if (selectedDragShape.length > 1) {
+                                    for (var j = 0; j < selectedDragShape.length; j++) {
+                                        if (selectedDragShape[j].selectedIndex === mainWindow.selectedIndex) {
+                                            activeStart = selectedDragShape[j];
+                                            break;
+                                        }
+                                    }
+                                }
+                                var resizeStart = activeStart !== null ? activeStart : selItem;
+                                var tx = resizeStart.x;
+                                var ty = resizeStart.y;
+                                var bx = resizeStart.x + resizeStart.w;
+                                var by = resizeStart.y + resizeStart.h;
                                 
                                 var signX = 1;
                                 var signY = 1;
@@ -786,21 +1197,72 @@ Window {
                                     }
                                 }
 
-                                shapeModel.setProperty(selectedIndex, "x", Math.min(tx, bx));
-                                shapeModel.setProperty(selectedIndex, "y", Math.min(ty, by));
-                                shapeModel.setProperty(selectedIndex, "w", Math.abs(bx - tx));
-                                shapeModel.setProperty(selectedIndex, "h", Math.abs(by - ty));
-                                isSaved = false;
+                                // 複数選択時は、操作対象の図形を基準に各図形の開始位置・サイズを変換する
+                                if (selectedDragShape.length > 1) {
+                                    if (activeStart !== null && activeStart.w !== 0 && activeStart.h !== 0) {
+                                        var anchorX = (isDraggingHandle === "tl" || isDraggingHandle === "bl")
+                                            ? activeStart.x + activeStart.w : activeStart.x;
+                                        var anchorY = (isDraggingHandle === "tl" || isDraggingHandle === "tr")
+                                            ? activeStart.y + activeStart.h : activeStart.y;
+                                        var scaleX = (bx - tx) / activeStart.w;
+                                        var scaleY = (by - ty) / activeStart.h;
+
+                                        for (var k = 0; k < selectedDragShape.length; k++) {
+                                            var dragItem = selectedDragShape[k];
+                                            var transformedLeft = anchorX + (dragItem.x - anchorX) * scaleX;
+                                            var transformedRight = anchorX + (dragItem.x + dragItem.w - anchorX) * scaleX;
+                                            var transformedTop = anchorY + (dragItem.y - anchorY) * scaleY;
+                                            var transformedBottom = anchorY + (dragItem.y + dragItem.h - anchorY) * scaleY;
+
+                                            shapeModel.setProperty(dragItem.selectedIndex, "x",
+                                                                   Math.min(transformedLeft, transformedRight));
+                                            shapeModel.setProperty(dragItem.selectedIndex, "y",
+                                                                   Math.min(transformedTop, transformedBottom));
+                                            shapeModel.setProperty(dragItem.selectedIndex, "w",
+                                                                   Math.abs(transformedRight - transformedLeft));
+                                            shapeModel.setProperty(dragItem.selectedIndex, "h",
+                                                                   Math.abs(transformedBottom - transformedTop));
+                                            if (dragItem.flipX !== undefined) {
+                                                shapeModel.setProperty(dragItem.selectedIndex, "flipX",
+                                                                       scaleX < 0 ? !dragItem.flipX : dragItem.flipX);
+                                            }
+                                            if (dragItem.flipY !== undefined) {
+                                                shapeModel.setProperty(dragItem.selectedIndex, "flipY",
+                                                                       scaleY < 0 ? !dragItem.flipY : dragItem.flipY);
+                                            }
+                                        }
+                                    }
+                                    mainWindow.isSaved = false;
+                                    return;
+                                }
+
+                                shapeModel.setProperty(mainWindow.selectedIndex, "x", Math.min(tx, bx));
+                                shapeModel.setProperty(mainWindow.selectedIndex, "y", Math.min(ty, by));
+                                shapeModel.setProperty(mainWindow.selectedIndex, "w", Math.abs(bx - tx));
+                                shapeModel.setProperty(mainWindow.selectedIndex, "h", Math.abs(by - ty));
+                                mainWindow.isSaved = false;
                                 return;
                             }
                         }
 
-                        if (currentTool === "none" && isDraggingShape && selectedIndex >= 0) {
+                        if (mainWindow.currentTool === "none" && isDraggingShape && mainWindow.selectedIndex >= 0) {
                             var dx = mouse.x - dragStartX;
                             var dy = mouse.y - dragStartY;
-                            shapeModel.setProperty(selectedIndex, "x", shapeStartX + dx);
-                            shapeModel.setProperty(selectedIndex, "y", shapeStartY + dy);
-                            isSaved = false;
+
+                            // 複数選択している場合、それぞれの図形のxy軸にマウス移動距離を足す
+                            if (selectedDragShape.length !== 0) {
+                                for (var i = 0; i < selectedDragShape.length; i++) {
+                                    shapeModel.setProperty(selectedDragShape[i].selectedIndex, "x", selectedDragShape[i].x + dx);
+                                    shapeModel.setProperty(selectedDragShape[i].selectedIndex, "y", selectedDragShape[i].y + dy);
+                                }                                
+                                mainWindow.isSaved = false;
+                                return;
+                            }
+
+                            // XY軸それぞれ、図形のドラック開始時の座標に＋移動距離をセットしている
+                            shapeModel.setProperty(mainWindow.selectedIndex, "x", shapeStartX + dx);
+                            shapeModel.setProperty(mainWindow.selectedIndex, "y", shapeStartY + dy);
+                            mainWindow.isSaved = false;
                             return;
                         }
 
@@ -812,7 +1274,7 @@ Window {
                         var nw = Math.abs(mouse.x - startX);
                         var nh = Math.abs(mouse.y - startY);
                         
-                        if ((currentTool === "circle" || currentTool === "rect") && (mouse.modifiers & Qt.ShiftModifier)) {
+                        if ((mainWindow.currentTool === "circle" || mainWindow.currentTool === "rect") && (mouse.modifiers & Qt.ShiftModifier)) {
                             var size = Math.max(nw, nh);
                             nw = size;
                             nh = size;
@@ -824,7 +1286,7 @@ Window {
                         shapeModel.setProperty(lastIdx, "y", ny);
                         shapeModel.setProperty(lastIdx, "w", nw);
                         shapeModel.setProperty(lastIdx, "h", nh);
-                        if (currentTool === "arrow") {
+                        if (mainWindow.currentTool === "arrow") {
                             if (mouse.modifiers & Qt.ShiftModifier) {
                                 var adx = mouse.x - startX;
                                 var ady = mouse.y - startY;
@@ -849,14 +1311,14 @@ Window {
                     onReleased: (mouse) => {
                         if (isDraggingHandle !== "") {
                             isDraggingHandle = "";
-                            saveState();
+                            mainWindow.saveState();
                             return;
                         }
 
                         if (isDraggingShape) {
                             isDraggingShape = false;
                             if (mouse.x !== dragStartX || mouse.y !== dragStartY) {
-                                saveState();
+                                mainWindow.saveState();
                             }
                             return;
                         }
@@ -868,12 +1330,15 @@ Window {
                                 var item = shapeModel.get(lastIdx);
                                 if (item.w < 5 && item.h < 5) {
                                     shapeModel.remove(lastIdx);
+                                    mainWindow.selectedIndex = -1;
                                 } else {
-                                    isSaved = false;
-                                    saveState();
+                                    mainWindow.isSaved = false;
+                                    mainWindow.saveState();
+                                    mainWindow.currentTool = "none";
+                                    mainWindow.selectedIndex = lastIdx;
+                                    mainWindow.selectedIndexes = [lastIdx];
                                 }
                             }
-                            selectedIndex = -1;
                         }
                     }
                 }
@@ -882,101 +1347,131 @@ Window {
                     model: shapeModel
                     delegate: Item {
                         id: shapeItem
-                        x: model.x
-                        y: model.y
-                        width: model.w
-                        height: model.h
+                        required property var model
+                        required property int index
+                        x: shapeItem.model.x
+                        y: shapeItem.model.y
+                        width: shapeItem.model.w
+                        height: shapeItem.model.h
 
-                        property bool isSelected: index === selectedIndex
+                        property bool isSelected: mainWindow.selectedIndexes.indexOf(shapeItem.index) !== -1
                         property real hScale: 1.0 / captureArea.scale
 
-                        Rectangle {
+                        Item {
                             anchors.fill: parent
-                            anchors.margins: - (model.thickness / 2) - 4 * hScale
-                            color: "transparent"
-                            border.color: "#00aaff"
-                            border.width: 2 * hScale
-                            visible: isSelected && currentTool === "none"
+                            anchors.margins: - (shapeItem.model.thickness / 2) - 4 * shapeItem.hScale
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none"
+
+                            Rectangle {
+                                id: selectionTop
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                height: 2 * shapeItem.hScale
+                                color: "#00aaff"
+                            }
+                            Rectangle {
+                                id: selectionBottom
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                height: 2 * shapeItem.hScale
+                                color: "#00aaff"
+                            }
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                width: 2 * shapeItem.hScale
+                                color: "#00aaff"
+                            }
+                            Rectangle {
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                width: 2 * shapeItem.hScale
+                                color: "#00aaff"
+                            }
                         }
                         
                         // Rect/Circle handles
                         Rectangle {
-                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
-                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
-                            x: - (model.thickness / 2) - 4 * hScale - 7 * hScale; y: - (model.thickness / 2) - 4 * hScale - 7 * hScale
-                            visible: isSelected && currentTool === "none" && (model.type === "rect" || model.type === "circle")
+                            width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
+                            x: - (shapeItem.model.thickness / 2) - 4 * shapeItem.hScale - 7 * shapeItem.hScale; y: - (shapeItem.model.thickness / 2) - 4 * shapeItem.hScale - 7 * shapeItem.hScale
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle" || shapeItem.model.type === "text")
                         }
                         Rectangle {
-                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
-                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
-                            x: model.w + (model.thickness / 2) + 4 * hScale - 7 * hScale; y: - (model.thickness / 2) - 4 * hScale - 7 * hScale
-                            visible: isSelected && currentTool === "none" && (model.type === "rect" || model.type === "circle")
+                            width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
+                            x: shapeItem.model.w + (shapeItem.model.thickness / 2) + 4 * shapeItem.hScale - 7 * shapeItem.hScale; y: - (shapeItem.model.thickness / 2) - 4 * shapeItem.hScale - 7 * shapeItem.hScale
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle" || shapeItem.model.type === "text")
                         }
                         Rectangle {
-                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
-                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
-                            x: - (model.thickness / 2) - 4 * hScale - 7 * hScale; y: model.h + (model.thickness / 2) + 4 * hScale - 7 * hScale
-                            visible: isSelected && currentTool === "none" && (model.type === "rect" || model.type === "circle")
+                            width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
+                            x: - (shapeItem.model.thickness / 2) - 4 * shapeItem.hScale - 7 * shapeItem.hScale; y: shapeItem.model.h + (shapeItem.model.thickness / 2) + 4 * shapeItem.hScale - 7 * shapeItem.hScale
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle" || shapeItem.model.type === "text")
                         }
                         Rectangle {
-                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
-                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
-                            x: model.w + (model.thickness / 2) + 4 * hScale - 7 * hScale; y: model.h + (model.thickness / 2) + 4 * hScale - 7 * hScale
-                            visible: isSelected && currentTool === "none" && (model.type === "rect" || model.type === "circle")
+                            width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
+                            x: shapeItem.model.w + (shapeItem.model.thickness / 2) + 4 * shapeItem.hScale - 7 * shapeItem.hScale; y: shapeItem.model.h + (shapeItem.model.thickness / 2) + 4 * shapeItem.hScale - 7 * shapeItem.hScale
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && (shapeItem.model.type === "rect" || shapeItem.model.type === "circle" || shapeItem.model.type === "text")
                         }
                         
                         // Arrow handles
                         Rectangle {
-                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
-                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
-                            x: (model.flipX ? model.w : 0) - 7 * hScale; y: (model.flipY ? model.h : 0) - 7 * hScale
-                            visible: isSelected && currentTool === "none" && model.type === "arrow"
+                            width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
+                            x: (shapeItem.model.flipX ? shapeItem.model.w : 0) - 7 * shapeItem.hScale; y: (shapeItem.model.flipY ? shapeItem.model.h : 0) - 7 * shapeItem.hScale
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && shapeItem.model.type === "arrow"
                         }
                         Rectangle {
-                            width: 14 * hScale; height: 14 * hScale; radius: 7 * hScale
-                            color: "#00aaff"; border.color: "white"; border.width: 2 * hScale
-                            x: (model.flipX ? 0 : model.w) - 7 * hScale; y: (model.flipY ? 0 : model.h) - 7 * hScale
-                            visible: isSelected && currentTool === "none" && model.type === "arrow"
-                        }
-
-                        Rectangle {
-                            anchors.fill: parent
-                            color: "transparent"
-                            border.color: model.color
-                            border.width: model.thickness
-                            visible: model.type === "rect"
+                            width: 14 * shapeItem.hScale; height: 14 * shapeItem.hScale; radius: 7 * shapeItem.hScale
+                            color: "#00aaff"; border.color: "white"; border.width: 2 * shapeItem.hScale
+                            x: (shapeItem.model.flipX ? 0 : shapeItem.model.w) - 7 * shapeItem.hScale; y: (shapeItem.model.flipY ? 0 : shapeItem.model.h) - 7 * shapeItem.hScale
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && shapeItem.model.type === "arrow"
                         }
 
                         Rectangle {
                             anchors.fill: parent
-                            color: "transparent"
-                            border.color: model.color
-                            border.width: model.thickness
+                            color: shapeItem.model.filled === true ? shapeItem.model.color : "transparent"
+                            border.color: shapeItem.model.color
+                            border.width: shapeItem.model.thickness
+                            visible: shapeItem.model.type === "rect"
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            color: shapeItem.model.filled === true ? shapeItem.model.color : "transparent"
+                            border.color: shapeItem.model.color
+                            border.width: shapeItem.model.thickness
                             radius: Math.max(width, height)
-                            visible: model.type === "circle"
+                            visible: shapeItem.model.type === "circle"
                         }
 
                         Text {
                             anchors.fill: parent
-                            text: model.textStr
-                            color: model.color
-                            font.pixelSize: Math.max(20, model.thickness * 10)
+                            text: shapeItem.model.textStr
+                            color: shapeItem.model.color
+                            font.pixelSize: Math.max(20, shapeItem.model.thickness * 10)
                             wrapMode: Text.Wrap
-                            visible: model.type === "text"
+                            visible: shapeItem.model.type === "text" && !(textInput.visible && textInput.editingIndex === shapeItem.index)
                         }
 
                         Canvas {
                             anchors.fill: parent
-                            anchors.margins: -Math.max(20, model.thickness * 4)
-                            visible: model.type === "arrow"
+                            anchors.margins: -Math.max(20, shapeItem.model.thickness * 4)
+                            visible: shapeItem.model.type === "arrow"
                             
-                            property int _w: model.w
-                            property int _h: model.h
-                            property color _c: model.color
-                            property int _t: model.thickness
-                            property bool _fx: model.flipX !== undefined ? model.flipX : false
-                            property bool _fy: model.flipY !== undefined ? model.flipY : false
-                            property int _pad: Math.max(20, model.thickness * 4)
+                            property int _w: shapeItem.model.w
+                            property int _h: shapeItem.model.h
+                            property color _c: shapeItem.model.color
+                            property int _t: shapeItem.model.thickness
+                            property bool _fx: shapeItem.model.flipX !== undefined ? shapeItem.model.flipX : false
+                            property bool _fy: shapeItem.model.flipY !== undefined ? shapeItem.model.flipY : false
+                            property int _pad: Math.max(20, shapeItem.model.thickness * 4)
                             
                             onPaint: {
                                 var ctx = getContext("2d");
@@ -987,24 +1482,31 @@ Window {
                                 var ex = (_fx ? 0 : _w) + _pad;
                                 var ey = (_fy ? 0 : _h) + _pad;
                                 
+                                var dx = ex - sx;
+                                var dy = ey - sy;
+                                var angle = Math.atan2(dy, dx);
+                                var arrowLength = Math.sqrt(dx * dx + dy * dy);
+                                var headlen = Math.min(Math.max(15, _t * 3), arrowLength * 0.8);
+                                var leftX = ex - headlen * Math.cos(angle - Math.PI / 6);
+                                var leftY = ey - headlen * Math.sin(angle - Math.PI / 6);
+                                var rightX = ex - headlen * Math.cos(angle + Math.PI / 6);
+                                var rightY = ey - headlen * Math.sin(angle + Math.PI / 6);
+                                var baseX = (leftX + rightX) / 2;
+                                var baseY = (leftY + rightY) / 2;
+
                                 ctx.beginPath();
                                 ctx.moveTo(sx, sy);
-                                ctx.lineTo(ex, ey);
+                                ctx.lineTo(baseX, baseY);
                                 ctx.strokeStyle = _c;
                                 ctx.lineWidth = _t;
                                 ctx.lineCap = "round";
                                 ctx.lineJoin = "round";
                                 ctx.stroke();
                                 
-                                var dx = ex - sx;
-                                var dy = ey - sy;
-                                var angle = Math.atan2(dy, dx);
-                                var headlen = Math.max(15, _t * 3);
-                                
                                 ctx.beginPath();
                                 ctx.moveTo(ex, ey);
-                                ctx.lineTo(ex - headlen * Math.cos(angle - Math.PI / 6), ey - headlen * Math.sin(angle - Math.PI / 6));
-                                ctx.lineTo(ex - headlen * Math.cos(angle + Math.PI / 6), ey - headlen * Math.sin(angle + Math.PI / 6));
+                                ctx.lineTo(leftX, leftY);
+                                ctx.lineTo(rightX, rightY);
                                 ctx.closePath();
                                 ctx.fillStyle = _c;
                                 ctx.fill();
@@ -1025,9 +1527,9 @@ Window {
                             color: "#00aaff"
                             border.color: "white"
                             border.width: 2
-                            x: (model.flipX ? model.w : 0) - 7
-                            y: (model.flipY ? model.h : 0) - 7
-                            visible: isSelected && currentTool === "none" && model.type === "arrow"
+                            x: (shapeItem.model.flipX ? shapeItem.model.w : 0) - 7
+                            y: (shapeItem.model.flipY ? shapeItem.model.h : 0) - 7
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && shapeItem.model.type === "arrow"
                         }
                         Rectangle {
                             width: 14
@@ -1036,9 +1538,9 @@ Window {
                             color: "#00aaff"
                             border.color: "white"
                             border.width: 2
-                            x: (model.flipX ? 0 : model.w) - 7
-                            y: (model.flipY ? 0 : model.h) - 7
-                            visible: isSelected && currentTool === "none" && model.type === "arrow"
+                            x: (shapeItem.model.flipX ? 0 : shapeItem.model.w) - 7
+                            y: (shapeItem.model.flipY ? 0 : shapeItem.model.h) - 7
+                            visible: shapeItem.isSelected && mainWindow.currentTool === "none" && shapeItem.model.type === "arrow"
                         }
                     }
                 }
@@ -1046,27 +1548,39 @@ Window {
                 TextEdit {
                     id: textInput
                     visible: false
-                    color: currentColor
-                    font.pixelSize: Math.max(20, currentThickness * 10)
+                    property int editingIndex: -1
+                    color: mainWindow.currentColor
+                    font.pixelSize: Math.max(20, mainWindow.currentThickness * 10)
                     selectByMouse: true
                     
                     onActiveFocusChanged: {
                         if (!activeFocus && visible) {
-                            if (text !== "") {
+                            if (editingIndex >= 0 && editingIndex < shapeModel.count) {
+                                if (text !== "") {
+                                    shapeModel.setProperty(editingIndex, "textStr", text);
+                                    shapeModel.setProperty(editingIndex, "w", Math.max(width, contentWidth));
+                                    shapeModel.setProperty(editingIndex, "h", Math.max(height, contentHeight));
+                                } else {
+                                    shapeModel.remove(editingIndex);
+                                }
+                                mainWindow.isSaved = false;
+                                mainWindow.saveState();
+                            } else if (text !== "") {
                                 shapeModel.append({
                                     type: "text",
-                                    color: currentColor,
-                                    thickness: currentThickness,
+                                    color: mainWindow.currentColor,
+                                    thickness: mainWindow.currentThickness,
                                     x: x,
                                     y: y,
                                     w: width,
                                     h: height,
                                     textStr: text
                                 })
-                                isSaved = false;
-                                saveState();
+                                mainWindow.isSaved = false;
+                                mainWindow.saveState();
                             }
-                            selectedIndex = -1; 
+                            editingIndex = -1;
+                            mainWindow.selectedIndex = -1;
                             visible = false;
                         }
                     }
@@ -1105,7 +1619,13 @@ Window {
         onDropped: (drop) => {
             mainWindow.requestActivate();
             if (drop.hasUrls && drop.urls.length > 0) {
-                loadImage(String(drop.urls[0]), false);
+                if (!mainWindow.isSaved) {
+                    discardDialog.pendingImageUrl = String(drop.urls[0]);
+                    discardDialog.pendingImageIsPasted = false;
+                    discardDialog.open();
+                } else {
+                    mainWindow.loadImage(String(drop.urls[0]), false);
+                }                 
             }
         }
     }

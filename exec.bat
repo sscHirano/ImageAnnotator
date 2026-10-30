@@ -16,6 +16,6 @@ echo =========================================
 if exist .\build\appImageAnnotator.exe (
     .\build\appImageAnnotator.exe
 ) else (
-    echo Error: appImageAnnotator.exe not found! Please run build.bat first.
+    echo Error: appImageAnnotator.exe not found! Please run build_windows.bat first.
     exit /b 1
 )
