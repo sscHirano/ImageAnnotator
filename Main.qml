@@ -390,6 +390,16 @@ Window {
         }
     }
 
+    Shortcut {
+        sequence: "Esc"
+        context: Qt.ApplicationShortcut
+        enabled: textInput.activeFocus
+        onActivated: {
+            mainWindow.currentTool = "none"
+            contentArea.forceActiveFocus();
+        }
+    }
+
     function switchImage(direction) {
         if (isPastedImage) return;
         if (folderModel.count <= 1 || String(mainImage.source) === "") return;
