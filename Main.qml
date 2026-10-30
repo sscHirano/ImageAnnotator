@@ -122,7 +122,6 @@ Window {
             var indexesToDelete = selectedIndexes.slice().sort(function(a, b) {
                 return b - a;
             });
-            console.log("indexesToDelete:", JSON.stringify(indexesToDelete));
             for (var i = 0; i < indexesToDelete.length; i++) {
                 shapeModel.remove(indexesToDelete[i]);
             }
