@@ -569,19 +569,19 @@ Window {
                 ToolButton { 
                     icon.source: "icons/paste.svg"
                     onClicked: mainWindow.pasteImage()
-                    ToolTip.visible: hovered; ToolTip.text: "Paste (Ctrl+V)"
+                    ToolTip.visible: hovered; ToolTip.text: "画像を貼り付け (Ctrl+V)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
                 ToolButton { 
                     icon.source: "icons/copy.svg"
                     onClicked: mainWindow.copyAnnotatedImage()
-                    ToolTip.visible: hovered; ToolTip.text: "Copy (Ctrl+C)"
+                    ToolTip.visible: hovered; ToolTip.text: "画像をコピー (Ctrl+C)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
                 ToolButton { 
                     icon.source: "icons/save.svg"
                     onClicked: saveDialog.open()
-                    ToolTip.visible: hovered; ToolTip.text: "Save As (Ctrl+S)"
+                    ToolTip.visible: hovered; ToolTip.text: "画像を保存 (Ctrl+S)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
             }
