@@ -580,7 +580,7 @@ Window {
                 }
                 ToolButton { 
                     icon.source: "icons/save.svg"
-                    onClicked: saveDialog.open()
+                    onClicked: mainWindow.openSaveDialog();
                     ToolTip.visible: hovered; ToolTip.text: "画像を保存 (Ctrl+S)"
                     Layout.preferredHeight: 40; Layout.preferredWidth: 40
                 }
