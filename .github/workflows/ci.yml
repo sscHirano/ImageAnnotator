@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [ "**" ]
+    tags: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  static-analysis:
+    name: Static Analysis (C++ & QML)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.2'
+          arch: 'linux_gcc_64'
+          cache: true
+
+      - name: Install Cppcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+
+      - name: Run Cppcheck (C++)
+        run: |
+          cppcheck --enable=warning,style,performance,portability \
+                   --library=qt \
+                   --language=c++ \
+                   --std=c++17 \
+                   --inline-suppr \
+                   --suppress=missingIncludeSystem \
+                   --suppress=missingInclude \
+                   --suppress=unusedFunction \
+                   --suppress=unmatchedSuppression \
+                   --error-exitcode=1 \
+                   main.cpp clipboardhelper.cpp tests/tst_clipboardhelper.cpp
+
+      - name: Run qmllint (QML)
+        run: |
+          qmllint --bare -I "$QT_ROOT_DIR/qml" Main.qml tests/tst_main.qml
+
+  unit-tests:
+    name: Unit Tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.2'
+          arch: 'win64_msvc2022_64'
+          cache: true
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Project & Tests
+        run: |
+          cmake --build build
+
+      - name: Run QTest and Qt Quick Test (CTest)
+        run: |
+          ctest --test-dir build --output-on-failure -C Release
+
+  release:
+    name: Build & Publish Release (Windows)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.2'
+          arch: 'win64_msvc2022_64'
+          cache: true
+
+      - name: Configure Release build
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build application
+        run: cmake --build build --config Release
+
+      - name: Package application
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageDirectory = 'ImageAnnotator_Release'
+          New-Item -ItemType Directory -Path $packageDirectory | Out-Null
+          Copy-Item 'build/appImageAnnotator.exe' $packageDirectory
+          windeployqt --qmldir . --release "$packageDirectory/appImageAnnotator.exe"
+          if ($LASTEXITCODE -ne 0) {
+            throw "windeployqt failed with exit code $LASTEXITCODE"
+          }
+          Compress-Archive -Path $packageDirectory -DestinationPath "ImageAnnotator-$env:GITHUB_REF_NAME-windows-x64.zip"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: ImageAnnotator-${{ github.ref_name }}-windows-x64.zip
+          fail_on_unmatched_files: true

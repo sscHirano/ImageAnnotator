@@ -20,6 +20,7 @@ qt_add_qml_module(appImageAnnotator
     VERSION 1.0
     QML_FILES Main.qml
     RESOURCES
+        app_icon.ico
         icons/paste.svg
         icons/copy.svg
         icons/save.svg
@@ -42,3 +43,6 @@ endif()
 target_link_libraries(appImageAnnotator
     PRIVATE Qt6::Quick Qt6::Svg
 )
+
+enable_testing()
+add_subdirectory(tests)
