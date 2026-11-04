@@ -54,11 +54,12 @@ sequenceDiagram
 
     alt クリップボードから貼り付け
         alt 貼り付けボタン
-            User->>QML: ToolButton.onClicked
+            User->>QML: 貼り付けボタンを押下
+            QML->>QML: Paste ToolButton.onClicked -> mainWindow.pasteImage()
         else Ctrl+V
-            User->>QML: Shortcut.onActivated
+            User->>QML: Ctrl+V を押下
+            QML->>QML: Shortcut(StandardKey.Paste).onActivated -> mainWindow.pasteImage()
         end
-        QML->>QML: mainWindow.pasteImage()
         activate QML
         QML->>Helper: clipboardHelper.hasImage()
         Helper->>OS: クリップボード画像を確認
@@ -82,7 +83,8 @@ sequenceDiagram
         end
         deactivate QML
     else ファイルをドロップ
-        User->>QML: DropArea.onDropped: (drop) => {
+        User->>QML: 画像ファイルをドロップ
+        QML->>QML: DropArea.onDropped: (drop) => {
         alt 保存済み
             QML->>QML: mainWindow.loadImage(fileUrl, false)
         else 未保存の変更あり
@@ -92,8 +94,9 @@ sequenceDiagram
             QML->>QML: mainWindow.loadImage(fileUrl, false)
         end
     else フォルダ内の画像を切り替え
-        User->>QML: ← / → キー → switchImage(direction)
-        QML->>QML: performSwitch() (未保存なら確認後)
+        User->>QML: ← / → キーを押下
+        QML->>QML: Keys.onPressed -> mainWindow.switchImage(direction)
+        QML->>QML: mainWindow.performSwitch() (未保存なら確認後)
         QML->>QML: folderModel から次の画像を取得
         QML->>QML: loadImage(nextFileUrl, false)
     end
@@ -113,49 +116,52 @@ sequenceDiagram
     participant History as history (Undo/Redo)
 
     note over User, History: 【新規図形の描画】
-    User->>Canvas: 図形ツール選択後、drawArea.MouseArea.onPressed
+    User->>Canvas: 図形ツール選択後、マウスを押下
+    Canvas->>Canvas: drawArea.onPressed: (mouse) => {
     Canvas->>Model: shapeModel.append(初期図形)
     User->>Canvas: マウスドラッグ
-    Canvas->>Canvas: onPositionChanged で座標・サイズを更新<br/>Shift で正円/正方形・矢印角度を調整
-    User->>Canvas: drawArea.MouseArea.onReleased
+    Canvas->>Canvas: drawArea.onPositionChanged: (mouse) => {<br/>座標・サイズを更新。Shift で正円/正方形・矢印角度を調整
+    User->>Canvas: マウスを離す
+    Canvas->>Canvas: drawArea.onReleased: (mouse) => {
     Canvas->>QML: mainWindow.saveState()
     QML->>History: 図形一覧を履歴に追加
     QML->>QML: isSaved = false<br/>有効サイズなら currentTool = "none"
     note over User, History: 【図形の選択・変形・移動】
-    User->>Canvas: 選択ツールで図形/ハンドルをクリック・ドラッグ
-    Canvas->>Canvas: drawArea.onPressed / hitTest...()
-    Canvas->>Model: onPositionChanged で shapeModel.setProperty()
-    User->>Canvas: drawArea.onReleased
+    User->>Canvas: 選択ツールで図形/ハンドルをクリック
+    Canvas->>Canvas: drawArea.onPressed: (mouse) => { / hitTest...()
+    User->>Canvas: 図形/ハンドルをドラッグ
+    Canvas->>Canvas: drawArea.onPositionChanged: (mouse) => {
+    Canvas->>Model: shapeModel.setProperty() で座標・サイズを更新
+    User->>Canvas: マウスを離す
+    Canvas->>Canvas: drawArea.onReleased: (mouse) => {
     Canvas->>QML: 移動/変形があれば mainWindow.saveState()
     QML->>History: 更新後の図形一覧を履歴に追加
     note over User, History: 【Undo / Redo 操作】
     alt Ctrl+Z
-        User->>QML: Shortcut.onActivated
-            QML->>QML: mainWindow.undoShape()
-            QML->>QML: applyState(history[historyIndex])
-            QML->>Model: shapeModel.clear() / append()
-            Model-->>Canvas: モデル変更に応じて UI を再描画
+        User->>QML: Ctrl+Z を押下
+        QML->>QML: Shortcut(Ctrl+Z).onActivated -> mainWindow.undoShape()
     else Undo ボタン
-        User->>QML: ToolButton.onClicked
-        QML->>QML: mainWindow.undoShape()
+        User->>QML: Undo ボタンを押下
+        QML->>QML: Undo ToolButton.onClicked -> mainWindow.undoShape()
+    end
+        activate QML
         QML->>QML: applyState(history[historyIndex])
         QML->>Model: shapeModel.clear() / append()
         Model-->>Canvas: モデル変更に応じて UI を再描画
-    end
+        deactivate QML
 
     alt Ctrl+Y
-        User->>QML: Shortcut.onActivated
-            QML->>QML: mainWindow.redoShape()
-            QML->>QML: applyState(history[historyIndex])
-            QML->>Model: shapeModel.clear() / append()
-            Model-->>Canvas: モデル変更に応じて UI を再描画
+        User->>QML: Ctrl+Y を押下
+        QML->>QML: Shortcut(Ctrl+Y).onActivated -> mainWindow.redoShape()
     else Redo ボタン
-        User->>QML: ToolButton.onClicked
-        QML->>QML: mainWindow.redoShape()
+        User->>QML: Redo ボタンを押下
+        QML->>QML: Redo ToolButton.onClicked -> mainWindow.redoShape()
+    end
+        activate QML
         QML->>QML: applyState(history[historyIndex])
         QML->>Model: shapeModel.clear() / append()
         Model-->>Canvas: モデル変更に応じて UI を再描画
-    end
+        deactivate QML
 ```
 
 ## 5. 新規スクリーンショットとキャンセル検知
@@ -169,8 +175,8 @@ sequenceDiagram
     participant SnippingTool as SnippingTool.exe
     participant OS as OS / Clipboard
 
-    User->>MainQML: 新規スクリーンショットボタンをクリック
-    MainQML->>MainQML: ToolButton.onClicked -> mainWindow.createNewScreenshot()
+    User->>MainQML: 「＋」ボタンをクリック
+    MainQML->>MainQML: "＋" ToolButton.onClicked -> mainWindow.createNewScreenshot()
     MainQML->>MainQML: mainWindow.showMinimized()
     MainQML->>OS: Qt.openUrlExternally("ms-screenclip:")
     MainQML->>Helper: clipboardHelper.watchClipboard()
@@ -220,14 +226,13 @@ sequenceDiagram
 
     alt ファイルへ保存
         alt Ctrl+S
-            User->>MainQML: Shortcut.onActivated
-            MainQML->>MainQML: mainWindow.openSaveDialog()
-            MainQML->>Dialog: currentFile を設定して saveDialog.open()
+            User->>MainQML: Ctrl+S を押下
+            MainQML->>MainQML: Shortcut(Ctrl+S).onActivated -> mainWindow.openSaveDialog()
         else 保存ボタン
-            User->>MainQML: ToolButton.onClicked
-            MainQML->>MainQML: mainWindow.openSaveDialog()
-            MainQML->>Dialog: currentFile を設定して saveDialog.open()
+            User->>MainQML: 保存 ボタンを押下
+            MainQML->>MainQML: Save ToolButton.onClicked -> mainWindow.openSaveDialog()
         end
+        MainQML->>Dialog: currentFile を設定して saveDialog.open()
         User->>OS: 保存先パスを指定して決定
         OS-->>Dialog: selectedFile
         Dialog->>MainQML: FileDialog.onAccepted
@@ -241,11 +246,11 @@ sequenceDiagram
         MainQML->>MainQML: 選択状態を復元
     else クリップボードへコピー
         alt Ctrl+C
-            User->>MainQML: Shortcut.onActivated
-                MainQML->>MainQML: mainWindow.copyAnnotatedImage()
+            User->>MainQML: Ctrl+C を押下
+            MainQML->>MainQML: Shortcut(StandardKey.Copy).onActivated -> mainWindow.copyAnnotatedImage()
         else Copy ボタン
-            User->>MainQML: ToolButton.onClicked
-            MainQML->>MainQML: mainWindow.copyAnnotatedImage()
+            User->>MainQML: コピー ボタンを押下
+            MainQML->>MainQML: Copy ToolButton.onClicked -> mainWindow.copyAnnotatedImage()
         end
             MainQML->>MainQML: 選択枠を非表示にする
             MainQML->>Capture: grabToImage(callback)
