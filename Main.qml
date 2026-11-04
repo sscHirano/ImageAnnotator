@@ -29,6 +29,7 @@ Window {
     property int historyIndex: -1
     property bool isApplyingHistory: false
 
+    // 現在の図形一覧をUndo/Redo用の履歴に保存する
     function saveState() {
         if (isApplyingHistory) return;
         var state = [];
@@ -49,6 +50,7 @@ Window {
             });
         }
         
+        // Undo後に別の編集を始めた場合は、分岐した先のRedo履歴を破棄する
         if (historyIndex < history.length - 1) {
             history = history.slice(0, historyIndex + 1);
         }
@@ -58,6 +60,7 @@ Window {
         historyIndex = history.length - 1;
     }
 
+    // 履歴の状態を図形モデルへ反映する
     function applyState(state) {
         isApplyingHistory = true;
         shapeModel.clear();
@@ -67,6 +70,7 @@ Window {
         isApplyingHistory = false;
     }
 
+    // 選択中の図形を少しずらした位置に複製する
     function repeatShape() {
         if (selectedIndex < 0 || selectedIndex >= shapeModel.count) {
             return;
@@ -92,6 +96,7 @@ Window {
     }
 
 
+    // ひとつ前の図形状態へ戻す
     function undoShape() {
         if (historyIndex > 0) {
             historyIndex--;
@@ -108,6 +113,7 @@ Window {
         }
     }
 
+    // Undoで戻した図形状態をひとつ先へ進める
     function redoShape() {
         if (historyIndex < history.length - 1) {
             historyIndex++;
@@ -117,8 +123,10 @@ Window {
         }
     }
 
+    // 選択中の図形をモデルから削除する
     function deleteSelectedShape() {
         if (selectedIndexes.length > 1) {
+            // 後ろのインデックスから削除して、未処理の選択インデックスがずれないようにする
             var indexesToDelete = selectedIndexes.slice().sort(function(a, b) {
                 return b - a;
             });
@@ -135,6 +143,7 @@ Window {
     }
     
 
+    // 選択中の図形（複数選択時は全図形）を指定量だけ移動する
     function nudgeShape(dx, dy) {
         if (selectedIndexes.length > 1) {
             for (var i = 0; i < selectedIndexes.length; i++) {
@@ -250,6 +259,7 @@ Window {
 
             var oldSelected = mainWindow.selectedIndex;
             var oldSelectedIndexes = mainWindow.selectedIndexes.slice();
+            // 選択枠やハンドルを出力に含めず、キャプチャ完了後に選択状態を戻す
             mainWindow.selectedIndex = -1;
             mainWindow.selectedIndexes = [];
             captureArea.grabToImage(function(result) {
@@ -262,6 +272,7 @@ Window {
         }
     }
 
+    // 現在時刻を初期ファイル名にして保存ダイアログを開く
     function openSaveDialog() {
         var now = new Date();
         var timestamp = now.getFullYear()
@@ -275,6 +286,7 @@ Window {
         saveDialog.open();
     }
 
+    // 日時の各要素を2桁の文字列に整える
     function padDatePart(value) {
         return value < 10 ? "0" + value : String(value);
     }
@@ -400,7 +412,9 @@ Window {
         }
     }
 
+    // フォルダ内の画像切り替え
     function switchImage(direction) {
+        // 貼り付け画像にはフォルダ内の前後関係がないため、切り替え対象にしない
         if (isPastedImage) return;
         if (folderModel.count <= 1 || String(mainImage.source) === "") return;
         
@@ -414,6 +428,7 @@ Window {
         }
     }
 
+    // 現在画像の位置から前後の画像を読み込む
     function performSwitch(direction) {
         var urlString = String(mainImage.source);
         var currentIndex = folderModel.indexOf(urlString);
@@ -426,6 +441,7 @@ Window {
         }
     }
 
+    // 画像を読み込み、図形・履歴・選択状態を初期化する
     function loadImage(urlStr, isPasted) {
         shapeModel.clear();
         history = [];
@@ -443,6 +459,7 @@ Window {
         }
     }
 
+    // クリップボード画像を一時フォルダ経由で読み込む
     function pasteImage() {
         if (mainWindow.clipboardHelper.hasImage()) {
             var url = mainWindow.clipboardHelper.pasteImageToTempFile();
@@ -458,9 +475,11 @@ Window {
         }
     }
 
+    // 選択枠を除いた画像と図形をキャプチャしてクリップボードへコピーする
     function copyAnnotatedImage() {
         if (String(mainImage.source) === "") return;
         
+        // 選択枠をコピー画像に含めず、キャプチャ後に選択状態を戻す
         var oldSelectedIndex = selectedIndex;
         var oldselectedIndexes = selectedIndexes;
         selectedIndex = -1;
@@ -481,11 +500,13 @@ Window {
     // クリップボード更新およびキャンセルを検知してウィンドウを再表示する
     Connections {
         target: mainWindow.clipboardHelper
+        // 画面切り取り画像が届いたら、最小化していたウィンドウを再表示する
         function onClipboardChanged() {
             mainWindow.showNormal();
             mainWindow.raise();
             mainWindow.requestActivate();
         }
+        // 切り取りがキャンセルされた場合も、ウィンドウを再表示する
         function onCaptureCanceled() {
             mainWindow.showNormal();
             mainWindow.raise();
@@ -493,6 +514,7 @@ Window {
         }
     }
 
+    // ウィンドウを最小化後、スクリーンショットを起動し、クリップボード監視を始める
     function createNewScreenshot() {
         // ウィンドウを最小化
         mainWindow.showMinimized();
@@ -502,6 +524,7 @@ Window {
         mainWindow.clipboardHelper.watchClipboard();
     }
 
+    // 色を適用
     function applyColor(color) {
         currentColor = color;
         if (selectedIndexes.length > 1) {
@@ -518,6 +541,7 @@ Window {
         }
     }
 
+    // 塗りつぶしを適応
     function applyFillColor() {
         if (selectedIndexes.length > 1 && (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
             for (var i = 0; i < selectedIndexes.length; i++) {    
@@ -533,6 +557,7 @@ Window {
         saveState();
     }
 
+    // 線の太さを適用
     function applyThickness(thickness) {
         currentThickness = thickness;
         if (selectedIndexes.length > 1) {
@@ -923,6 +948,7 @@ Window {
                         textInput.cursorPosition = textInput.text.length;
                     }
 
+                    // 選択図形のドラッグ開始時点の位置・サイズを保存する
                     function saveSelectedDragShape() {
                         var state = [];
                         for (var j = 0; j < mainWindow.selectedIndexes.length; j++) {
@@ -1274,6 +1300,7 @@ Window {
                         var nw = Math.abs(mouse.x - startX);
                         var nh = Math.abs(mouse.y - startY);
                         
+                        // Shift押下時は円・四角形の縦横比を1:1に固定する
                         if ((mainWindow.currentTool === "circle" || mainWindow.currentTool === "rect") && (mouse.modifiers & Qt.ShiftModifier)) {
                             var size = Math.max(nw, nh);
                             nw = size;
@@ -1287,6 +1314,7 @@ Window {
                         shapeModel.setProperty(lastIdx, "w", nw);
                         shapeModel.setProperty(lastIdx, "h", nh);
                         if (mainWindow.currentTool === "arrow") {
+                            // 矢印はShift押下時に45度刻みへ揃え、始点・終点の向きはflip属性で保持する
                             if (mouse.modifiers & Qt.ShiftModifier) {
                                 var adx = mouse.x - startX;
                                 var ady = mouse.y - startY;
@@ -1553,6 +1581,7 @@ Window {
                     font.pixelSize: Math.max(20, mainWindow.currentThickness * 10)
                     selectByMouse: true
                     
+                    // 編集欄からフォーカスが外れた時点で、入力中の内容を図形モデルへ確定する
                     onActiveFocusChanged: {
                         if (!activeFocus && visible) {
                             if (editingIndex >= 0 && editingIndex < shapeModel.count) {
