@@ -19,6 +19,7 @@ qt_add_qml_module(appImageAnnotator
     URI ImageAnnotator
     VERSION 1.0
     QML_FILES Main.qml
+    QML_FILES Toolbar.qml
     RESOURCES
         app_icon.ico
         icons/paste.svg
