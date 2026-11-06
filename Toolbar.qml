@@ -71,7 +71,10 @@ Rectangle {
                 hoverEnabled: true
                 onClicked: {
                     mainWindow.currentTool = control.toolName;
-                    if (control.toolName !== "none") mainWindow.selectedIndex = -1;
+                    if (control.toolName !== "none") {
+                        mainWindow.selectedIndex = -1;
+                        mainWindow.selectedIndexes = [];
+                    }
                 }
             }
         }
