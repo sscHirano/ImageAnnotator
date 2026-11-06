@@ -89,6 +89,7 @@ Window {
         };
         shapeModel.append(copyShape);
         selectedIndex = shapeModel.count -1;
+        selectedIndexes = [shapeModel.count -1];
         isSaved = false;
         mainWindow.saveState();
     }
