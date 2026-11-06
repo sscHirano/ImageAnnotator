@@ -223,8 +223,8 @@ TestCase {
 
         // 2. ダミー画像を読み込んで drawArea (キャンバス) を有効化（500x500）
         mainWindow.loadImage("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='500'></svg>", true);
-        tryVerify(function() { return mainWindow.drawArea.mouseArea.width >= 500; }, 1000);
-        waitForRendering(mainWindow.drawArea.mouseArea);
+        tryVerify(function() { return mainWindow.imageArea.drawArea.mouseArea.width >= 500; }, 1000);
+        waitForRendering(mainWindow.imageArea.drawArea.mouseArea);
 
         // 3. テスト用図形を2つ作成
         mainWindow.shapeModel.append({
@@ -244,9 +244,9 @@ TestCase {
         mainWindow.selectedIndexes = [0, 1];
 
         // 5. ハンドルを避け、図形0の中央付近 (90, 90) を掴んで (+30px, +20px) ドラッグ
-        mousePress(mainWindow.drawArea.mouseArea, 90, 90, Qt.LeftButton);
-        mouseMove(mainWindow.drawArea.mouseArea, 120, 110, 50, Qt.LeftButton);
-        mouseRelease(mainWindow.drawArea.mouseArea, 120, 110, Qt.LeftButton);
+        mousePress(mainWindow.imageArea.drawArea.mouseArea, 90, 90, Qt.LeftButton);
+        mouseMove(mainWindow.imageArea.drawArea.mouseArea, 120, 110, 50, Qt.LeftButton);
+        mouseRelease(mainWindow.imageArea.drawArea.mouseArea, 120, 110, Qt.LeftButton);
 
         // 6. 検証: 両方の図形が (+30px, +20px) 移動したことを確認
         // 図形0: (50 + 30, 50 + 20) -> (80, 70)
@@ -273,8 +273,8 @@ TestCase {
 
         // 2. ダミー画像を読み込んで drawArea (キャンバス) を有効化（500x500）
         mainWindow.loadImage("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='500'></svg>", true);
-        tryVerify(function() { return mainWindow.drawArea.mouseArea.width >= 500; }, 1000);
-        waitForRendering(mainWindow.drawArea.mouseArea);
+        tryVerify(function() { return mainWindow.imageArea.drawArea.mouseArea.width >= 500; }, 1000);
+        waitForRendering(mainWindow.imageArea.drawArea.mouseArea);
 
         // 3. テスト用図形を2つ作成 (w: 80, h: 80)
         mainWindow.shapeModel.append({
@@ -294,9 +294,9 @@ TestCase {
         mainWindow.selectedIndexes = [0, 1];
 
         // 5. 左上のハンドル (50, 50) を掴んで外側 (30, 30) へドラッグ (+20px 拡大)
-        mousePress(mainWindow.drawArea.mouseArea, 50, 50, Qt.LeftButton);
-        mouseMove(mainWindow.drawArea.mouseArea, 30, 30, 50, Qt.LeftButton);
-        mouseRelease(mainWindow.drawArea.mouseArea, 30, 30, Qt.LeftButton);
+        mousePress(mainWindow.imageArea.drawArea.mouseArea, 50, 50, Qt.LeftButton);
+        mouseMove(mainWindow.imageArea.drawArea.mouseArea, 30, 30, 50, Qt.LeftButton);
+        mouseRelease(mainWindow.imageArea.drawArea.mouseArea, 30, 30, Qt.LeftButton);
 
         // 6. 検証: 両方の図形サイズが一括で拡大 (80 -> 100) されたことを確認
         // 図形0 (80 + 20 = 100)

@@ -20,7 +20,7 @@ Window {
     property var selectedIndexes: []
     property bool isSaved: true
     property alias shapeModel: shapeModel
-    property alias drawArea: drawArea 
+    property alias imageArea: imageArea
     property var clipboardHelper: null
 
     property var history: []
@@ -260,7 +260,7 @@ Window {
             // 選択枠やハンドルを出力に含めず、キャプチャ完了後に選択状態を戻す
             mainWindow.selectedIndex = -1;
             mainWindow.selectedIndexes = [];
-            captureArea.grabToImage(function(result) {
+            imageArea.captureArea.grabToImage(function(result) {
                 if (result.saveToFile(path)) {
                     mainWindow.isSaved = true;
                 }
@@ -311,37 +311,37 @@ Window {
     Shortcut {
         sequence: "V"
         context: Qt.ApplicationShortcut
-        enabled: !drawArea.textEditorActive
+        enabled: !imageArea.drawArea.textEditorActive
         onActivated: mainWindow.currentTool = "none"
     }
     Shortcut {
         sequence: "C"
         context: Qt.ApplicationShortcut
-        enabled: !drawArea.textEditorActive
+        enabled: !imageArea.drawArea.textEditorActive
         onActivated: { mainWindow.currentTool = "circle"; mainWindow.selectedIndex = -1; }
     }
     Shortcut {
         sequence: "S"
         context: Qt.ApplicationShortcut
-        enabled: !drawArea.textEditorActive
+        enabled: !imageArea.drawArea.textEditorActive
         onActivated: { mainWindow.currentTool = "rect"; mainWindow.selectedIndex = -1; }
     }
     Shortcut {
         sequence: "T"
         context: Qt.ApplicationShortcut
-        enabled: !drawArea.textEditorActive
+        enabled: !imageArea.drawArea.textEditorActive
         onActivated: { mainWindow.currentTool = "text"; mainWindow.selectedIndex = -1; }
     }
     Shortcut {
         sequence: "A"
         context: Qt.ApplicationShortcut
-        enabled: !drawArea.textEditorActive
+        enabled: !imageArea.drawArea.textEditorActive
         onActivated: { mainWindow.currentTool = "arrow"; mainWindow.selectedIndex = -1; }
     }
     Shortcut {
         sequence: "F"
         context: Qt.ApplicationShortcut
-        enabled: !drawArea.textEditorActive && mainWindow.selectedIndex >= 0 && mainWindow.selectedIndex < shapeModel.count &&
+        enabled: !imageArea.drawArea.textEditorActive && mainWindow.selectedIndex >= 0 && mainWindow.selectedIndex < shapeModel.count &&
                  (shapeModel.get(mainWindow.selectedIndex).type === "rect" || shapeModel.get(mainWindow.selectedIndex).type === "circle")
         onActivated: {
             var selectedShape = shapeModel.get(mainWindow.selectedIndex);
@@ -354,7 +354,7 @@ Window {
     Shortcut {
         sequence: "R"
         context: Qt.ApplicationShortcut
-        enabled: !drawArea.textEditorActive
+        enabled: !imageArea.drawArea.textEditorActive
         onActivated: {
             mainWindow.repeatShape();
         }
@@ -364,7 +364,7 @@ Window {
         sequences: [StandardKey.Paste]
         context: Qt.ApplicationShortcut
         onActivated: {
-            if (drawArea.textEditorActive) textInput.paste();
+            if (imageArea.drawArea.textEditorActive) imageArea.drawArea.pasteText();
             else mainWindow.pasteImage();
         }
     }
@@ -372,7 +372,7 @@ Window {
         sequences: [StandardKey.Copy]
         context: Qt.ApplicationShortcut
         onActivated: {
-            if (drawArea.textEditorActive) textInput.copy();
+            if (imageArea.drawArea.textEditorActive) imageArea.drawArea.copyText();
             else mainWindow.copyAnnotatedImage();
         }
     }
@@ -380,7 +380,7 @@ Window {
         sequence: "Ctrl+Z"
         context: Qt.ApplicationShortcut
         onActivated: {
-            if (drawArea.textEditorActive) textInput.undo();
+            if (imageArea.drawArea.textEditorActive) imageArea.drawArea.undoText();
             else mainWindow.undoShape();
         }
     }
@@ -388,7 +388,7 @@ Window {
         sequence: "Ctrl+Y"
         context: Qt.ApplicationShortcut
         onActivated: {
-            if (drawArea.textEditorActive) textInput.redo();
+            if (imageArea.drawArea.textEditorActive) imageArea.drawArea.redoText();
             else mainWindow.redoShape();
         }
     }
@@ -396,14 +396,14 @@ Window {
         sequences: [StandardKey.Delete]
         context: Qt.ApplicationShortcut
         onActivated: {
-            if (!drawArea.textEditorActive) mainWindow.deleteSelectedShape();
+            if (!imageArea.drawArea.textEditorActive) mainWindow.deleteSelectedShape();
         }
     }
 
     Shortcut {
         sequence: "Esc"
         context: Qt.ApplicationShortcut
-        enabled: drawArea.textEditorActive
+        enabled: imageArea.drawArea.textEditorActive
         onActivated: {
             mainWindow.currentTool = "none"
             contentArea.forceActiveFocus();
@@ -414,7 +414,7 @@ Window {
     function switchImage(direction) {
         // 貼り付け画像にはフォルダ内の前後関係がないため、切り替え対象にしない
         if (isPastedImage) return;
-        if (folderModel.count <= 1 || String(mainImage.source) === "") return;
+        if (folderModel.count <= 1 || String(imageArea.source) === "") return;
         
         if (!isSaved) {
             discardDialog.pendingImageUrl = "";
@@ -428,7 +428,7 @@ Window {
 
     // 現在画像の位置から前後の画像を読み込む
     function performSwitch(direction) {
-        var urlString = String(mainImage.source);
+        var urlString = String(imageArea.source);
         var currentIndex = folderModel.indexOf(urlString);
         if (currentIndex !== -1) {
             var newIndex = currentIndex + direction;
@@ -446,7 +446,7 @@ Window {
         historyIndex = -1;
         selectedIndex = -1;
         isSaved = true;
-        mainImage.source = urlStr;
+        imageArea.source = urlStr;
         isPastedImage = isPasted;
         
         if (!isPasted) {
@@ -475,7 +475,7 @@ Window {
 
     // 選択枠を除いた画像と図形をキャプチャしてクリップボードへコピーする
     function copyAnnotatedImage() {
-        if (String(mainImage.source) === "") return;
+        if (String(imageArea.source) === "") return;
         
         // 選択枠をコピー画像に含めず、キャプチャ後に選択状態を戻す
         var oldSelectedIndex = selectedIndex;
@@ -483,7 +483,7 @@ Window {
         selectedIndex = -1;
         selectedIndexes = [];
         
-        captureArea.grabToImage(function(result) {
+        imageArea.captureArea.grabToImage(function(result) {
             var tempUrl = mainWindow.clipboardHelper.generateTempFilePath();
             if (tempUrl !== "") {
                 var localPath = tempUrl.replace("file:///", "");
@@ -534,8 +534,8 @@ Window {
         }
         isSaved = false;
         saveState();
-        if (drawArea.textEditorvisible) {
-            textInput.forceActiveFocus();
+        if (imageArea.drawArea.textEditorVisible) {
+            imageArea.drawArea.focusTextEditor();
         }
     }
 
@@ -615,60 +615,9 @@ Window {
             }
         }
 
-        Text {
-            anchors.centerIn: parent
-            text: qsTr("画像をここにドラッグ＆ドロップするか、Ctrl+Vで貼り付けてください\n（左右キーでフォルダ内の画像を切り替え）")
-            color: "#888888"
-            font.pixelSize: 20
-            horizontalAlignment: Text.AlignHCenter
-            visible: String(mainImage.source) === ""
-        }
-
-        // 画像の表示領域。contentAreaの端から20pxの余白を取り、画像が収まる範囲を定める
-        Item {
-            id: imageContainer
+        ImageArea {
+            id: imageArea
             anchors.fill: parent
-            anchors.margins: 20
-            visible: String(mainImage.source) !== ""
-
-            // 元画像のピクセル寸法と表示倍率を持ち、背景・画像・図形を重ねるキャプチャ領域
-            Item {
-                id: captureArea
-                width: mainImage.sourceSize.width > 0 ? mainImage.sourceSize.width : 1
-                height: mainImage.sourceSize.height > 0 ? mainImage.sourceSize.height : 1
-                anchors.centerIn: parent
-                scale: Math.min(imageContainer.width / width, imageContainer.height / height)
-
-                // 画像の透明部分を市松模様で見せる背景
-                Image {
-                    id: checkerboard
-                    anchors.fill: parent
-                    fillMode: Image.Tile
-                    source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><rect width='32' height='32' fill='%232b2b2b'/><rect width='16' height='16' fill='%23444444'/><rect x='16' y='16' width='16' height='16' fill='%23444444'/></svg>"
-                }
-
-                // 読み込んだ元画像
-                Image {
-                    id: mainImage
-                    anchors.fill: parent
-                    asynchronous: true
-                    fillMode: Image.Stretch
-                    smooth: true
-                    mipmap: true
-                    onStatusChanged: {
-                        if (status === Image.Error) {
-                            imageErrorDialog.open();
-                            source = ""
-                        }
-                    }
-                }
-
-                // 図形の表示・選択・編集を行う領域
-                DrawArea {
-                    id: drawArea
-                    anchors.fill: parent
-                }
-            }
         }
     }
 

@@ -21,6 +21,7 @@ qt_add_qml_module(appImageAnnotator
     QML_FILES Main.qml
     QML_FILES Toolbar.qml
     QML_FILES DrawArea.qml
+    QML_FILES ImageArea.qml
     RESOURCES
         app_icon.ico
         icons/paste.svg

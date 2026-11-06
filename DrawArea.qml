@@ -3,8 +3,6 @@ import QtQuick.Window
 import Qt.labs.folderlistmodel
 import QtQuick.Dialogs
 
-
-
 Item {
     property alias mouseArea: mouseArea
 
@@ -737,8 +735,28 @@ Item {
         }
     }
 
-　　property bool textEditorActive: textInput.activeFocus
-    property bool textEditorvisible: textInput.visible
+    property bool textEditorActive: textInput.activeFocus
+    property bool textEditorVisible: textInput.visible
+
+    function focusTextEditor() {
+        textInput.forceActiveFocus();
+    }
+
+    function pasteText() {
+        textInput.paste();
+    }
+
+    function copyText() {
+        textInput.copy();
+    }
+
+    function undoText() {
+        textInput.undo();
+    }
+
+    function redoText() {
+        textInput.redo();
+    }
 
     TextEdit {
         id: textInput
