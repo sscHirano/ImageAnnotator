@@ -516,8 +516,6 @@ Item {
             if (isDraggingShape) {
                 isDraggingShape = false;
                 var draggedItem = shapeModel.get(mainWindow.selectedIndex);
-                console.log("mouse.x:", JSON.stringify(mouse.x));
-                console.log("dragStartX:", JSON.stringify(dragStartX));
                 // 図形の位置を比べ、変わった時だけ履歴を保存
                 if (draggedItem.x !== shapeStartX || draggedItem.y !== shapeStartY) {
                     mainWindow.saveState();
