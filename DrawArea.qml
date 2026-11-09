@@ -20,10 +20,12 @@ Item {
         property bool isDrawing: false
 
         property bool isDraggingShape: false
-        property int dragStartX: 0
-        property int dragStartY: 0
-        property int shapeStartX: 0
-        property int shapeStartY: 0
+        property real dragStartX: 0
+        property real dragStartY: 0
+        property real shapeStartX: 0
+        property real shapeStartY: 0
+        property real shapeStartW: 0
+        property real shapeStartH: 0
         property var selectedDragShape: []
 
         
@@ -146,6 +148,8 @@ Item {
                         var sy = selItem.y + (selItem.flipY ? selItem.h : 0);
                         var ex = selItem.x + (selItem.flipX ? 0 : selItem.w);
                         var ey = selItem.y + (selItem.flipY ? 0 : selItem.h);
+                        shapeStartW = selItem.w;
+                        shapeStartH = selItem.h;
                         if (hitTestHandle(mouse.x, mouse.y, sx, sy)) {
                             mainWindow.selectedIndex = handleIndex;
                             isDraggingHandle = "start";
@@ -163,6 +167,8 @@ Item {
                         var ty = selItem.y;
                         var bx = selItem.x + selItem.w;
                         var by = selItem.y + selItem.h;
+                        shapeStartW = selItem.w;
+                        shapeStartH = selItem.h;
                         if (hitTestHandle(mouse.x, mouse.y, tx, ty)) {
                             mainWindow.selectedIndex = handleIndex;
                             isDraggingHandle = "tl";
@@ -499,13 +505,21 @@ Item {
         onReleased: (mouse) => {
             if (isDraggingHandle !== "") {
                 isDraggingHandle = "";
-                mainWindow.saveState();
+                var handleItem = shapeModel.get(mainWindow.selectedIndex);
+                // 図家の幅・高さと比べ、サイズが変わったときだけ履歴を保存
+                if (handleItem.w !== shapeStartW || handleItem.h !== shapeStartH) {
+                    mainWindow.saveState();
+                }
                 return;
             }
 
             if (isDraggingShape) {
                 isDraggingShape = false;
-                if (mouse.x !== dragStartX || mouse.y !== dragStartY) {
+                var draggedItem = shapeModel.get(mainWindow.selectedIndex);
+                console.log("mouse.x:", JSON.stringify(mouse.x));
+                console.log("dragStartX:", JSON.stringify(dragStartX));
+                // 図形の位置を比べ、変わった時だけ履歴を保存
+                if (draggedItem.x !== shapeStartX || draggedItem.y !== shapeStartY) {
                     mainWindow.saveState();
                 }
                 return;
@@ -516,6 +530,7 @@ Item {
                 var lastIdx = shapeModel.count - 1;
                 if (lastIdx >= 0) {
                     var item = shapeModel.get(lastIdx);
+                    // 小さすぎる図形は作成を取り消し、それ以外は新規図形として確定する
                     if (item.w < 5 && item.h < 5) {
                         shapeModel.remove(lastIdx);
                         mainWindow.selectedIndex = -1;
