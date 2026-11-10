@@ -542,10 +542,12 @@ Window {
 
     // 塗りつぶしを適応
     function applyFillColor() {
-        if (selectedIndexes.length > 1 && (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
+        if (selectedIndexes.length > 1) {
             for (var i = 0; i < selectedIndexes.length; i++) {    
                 var selectedShapes = shapeModel.get(selectedIndexes[i]);
-                shapeModel.setProperty(selectedIndexes[i], "filled", selectedShapes.filled !== true);
+                if (selectedShapes.type === "rect" || selectedShapes.type === "circle") {                    
+                    shapeModel.setProperty(selectedIndexes[i], "filled", selectedShapes.filled !== true);   
+                }
             }
         } else if (selectedIndex >= 0 && selectedIndex < shapeModel.count &&
                 (shapeModel.get(selectedIndex).type === "rect" || shapeModel.get(selectedIndex).type === "circle")) {
