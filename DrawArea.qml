@@ -330,6 +330,65 @@ Item {
                     shapeModel.setProperty(mainWindow.selectedIndex, "h", nnh);
                     shapeModel.setProperty(mainWindow.selectedIndex, "flipX", sx > ex);
                     shapeModel.setProperty(mainWindow.selectedIndex, "flipY", sy > ey);
+
+                    if (selectedDragShape.length > 1) {
+                        var arrowStart = null;
+                        for (var j = 0; j < selectedDragShape.length; j++) {
+                            if (selectedDragShape[j].selectedIndex === mainWindow.selectedIndex) {
+                                arrowStart = selectedDragShape[j];
+                                break;
+                            }
+                        }
+
+                        if (arrowStart !== null) {
+                            var originalStartX = arrowStart.x + (arrowStart.flipX ? arrowStart.w : 0);
+                            var originalStartY = arrowStart.y + (arrowStart.flipY ? arrowStart.h : 0);
+                            var originalEndX = arrowStart.x + (arrowStart.flipX ? 0 : arrowStart.w);
+                            var originalEndY = arrowStart.y + (arrowStart.flipY ? 0 : arrowStart.h);
+                            var fixedArrowX = isDraggingHandle === "start" ? originalEndX : originalStartX;
+                            var fixedArrowY = isDraggingHandle === "start" ? originalEndY : originalStartY;
+                            var originalMovingX = isDraggingHandle === "start" ? originalStartX : originalEndX;
+                            var originalMovingY = isDraggingHandle === "start" ? originalStartY : originalEndY;
+                            var newMovingX = isDraggingHandle === "start" ? sx : ex;
+                            var newMovingY = isDraggingHandle === "start" ? sy : ey;
+                            var arrowScaleX = originalMovingX !== fixedArrowX
+                                ? (newMovingX - fixedArrowX) / (originalMovingX - fixedArrowX) : 1;
+                            var arrowScaleY = originalMovingY !== fixedArrowY
+                                ? (newMovingY - fixedArrowY) / (originalMovingY - fixedArrowY) : 1;
+                            var resizeFromLeft = originalMovingX < fixedArrowX;
+                            var resizeFromTop = originalMovingY < fixedArrowY;
+
+                            for (var k = 0; k < selectedDragShape.length; k++) {
+                                var dragItem = selectedDragShape[k];
+                                if (dragItem.selectedIndex === mainWindow.selectedIndex) {
+                                    continue;
+                                }
+
+                                var fixedX = resizeFromLeft ? dragItem.x + dragItem.w : dragItem.x;
+                                var fixedY = resizeFromTop ? dragItem.y + dragItem.h : dragItem.y;
+                                var resizedEdgeX = fixedX + (resizeFromLeft ? -1 : 1) * dragItem.w * arrowScaleX;
+                                var resizedEdgeY = fixedY + (resizeFromTop ? -1 : 1) * dragItem.h * arrowScaleY;
+
+                                shapeModel.setProperty(dragItem.selectedIndex, "x",
+                                                        Math.min(fixedX, resizedEdgeX));
+                                shapeModel.setProperty(dragItem.selectedIndex, "y",
+                                                        Math.min(fixedY, resizedEdgeY));
+                                shapeModel.setProperty(dragItem.selectedIndex, "w",
+                                                        Math.abs(dragItem.w * arrowScaleX));
+                                shapeModel.setProperty(dragItem.selectedIndex, "h",
+                                                        Math.abs(dragItem.h * arrowScaleY));
+                                if (dragItem.flipX !== undefined) {
+                                    shapeModel.setProperty(dragItem.selectedIndex, "flipX",
+                                                            arrowScaleX < 0 ? !dragItem.flipX : dragItem.flipX);
+                                }
+                                if (dragItem.flipY !== undefined) {
+                                    shapeModel.setProperty(dragItem.selectedIndex, "flipY",
+                                                            arrowScaleY < 0 ? !dragItem.flipY : dragItem.flipY);
+                                }
+                            }
+                        }
+                    }
+
                     mainWindow.isSaved = false;
                     return;
                 } else if (selItem.type === "rect" || selItem.type === "circle" || selItem.type === "text") {
