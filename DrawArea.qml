@@ -389,31 +389,37 @@ Item {
                         }
                     }
 
-                    // 複数選択時は、操作対象の図形を基準に各図形の開始位置・サイズを変換する
+                    // 複数選択時は、各図形のドラッグ角の反対側の角を固定してサイズ変更する
                     if (selectedDragShape.length > 1) {
                         if (activeStart !== null && activeStart.w !== 0 && activeStart.h !== 0) {
-                            var anchorX = (isDraggingHandle === "tl" || isDraggingHandle === "bl")
-                                ? activeStart.x + activeStart.w : activeStart.x;
-                            var anchorY = (isDraggingHandle === "tl" || isDraggingHandle === "tr")
-                                ? activeStart.y + activeStart.h : activeStart.y;
                             var scaleX = (bx - tx) / activeStart.w;
                             var scaleY = (by - ty) / activeStart.h;
+                            var resizeFromLeft = isDraggingHandle === "tl" || isDraggingHandle === "bl";
+                            var resizeFromTop = isDraggingHandle === "tl" || isDraggingHandle === "tr";
 
                             for (var k = 0; k < selectedDragShape.length; k++) {
                                 var dragItem = selectedDragShape[k];
-                                var transformedLeft = anchorX + (dragItem.x - anchorX) * scaleX;
-                                var transformedRight = anchorX + (dragItem.x + dragItem.w - anchorX) * scaleX;
-                                var transformedTop = anchorY + (dragItem.y - anchorY) * scaleY;
-                                var transformedBottom = anchorY + (dragItem.y + dragItem.h - anchorY) * scaleY;
-
-                                shapeModel.setProperty(dragItem.selectedIndex, "x",
-                                                        Math.min(transformedLeft, transformedRight));
-                                shapeModel.setProperty(dragItem.selectedIndex, "y",
-                                                        Math.min(transformedTop, transformedBottom));
-                                shapeModel.setProperty(dragItem.selectedIndex, "w",
-                                                        Math.abs(transformedRight - transformedLeft));
-                                shapeModel.setProperty(dragItem.selectedIndex, "h",
-                                                        Math.abs(transformedBottom - transformedTop));
+                                if (dragItem.selectedIndex === mainWindow.selectedIndex) {
+                                    shapeModel.setProperty(dragItem.selectedIndex, "x", Math.min(tx, bx));
+                                    shapeModel.setProperty(dragItem.selectedIndex, "y", Math.min(ty, by));
+                                    shapeModel.setProperty(dragItem.selectedIndex, "w", Math.abs(bx - tx));
+                                    shapeModel.setProperty(dragItem.selectedIndex, "h", Math.abs(by - ty));
+                                } else {
+                                    var resizedWidth = Math.abs(dragItem.w * scaleX);
+                                    var resizedHeight = Math.abs(dragItem.h * scaleY);
+                                    var fixedX = resizeFromLeft ? dragItem.x + dragItem.w : dragItem.x;
+                                    var fixedY = resizeFromTop ? dragItem.y + dragItem.h : dragItem.y;
+                                    var resizedEdgeX = fixedX + (resizeFromLeft ? -1 : 1) * dragItem.w * scaleX;
+                                    var resizedEdgeY = fixedY + (resizeFromTop ? -1 : 1) * dragItem.h * scaleY;
+                                    shapeModel.setProperty(dragItem.selectedIndex, "x",
+                                                            Math.min(fixedX, resizedEdgeX));
+                                    shapeModel.setProperty(dragItem.selectedIndex, "y",
+                                                            Math.min(fixedY, resizedEdgeY));
+                                    shapeModel.setProperty(dragItem.selectedIndex, "w",
+                                                            resizedWidth);
+                                    shapeModel.setProperty(dragItem.selectedIndex, "h",
+                                                            resizedHeight);
+                                }
                                 if (dragItem.flipX !== undefined) {
                                     shapeModel.setProperty(dragItem.selectedIndex, "flipX",
                                                             scaleX < 0 ? !dragItem.flipX : dragItem.flipX);
